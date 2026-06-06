@@ -1,4 +1,7 @@
 import { useState } from "react";
+import PhoneInput from "react-phone-number-input";
+import "react-phone-number-input/style.css";
+import api, { getErrorMessage } from "../api/axiosClient";
 
 function RegistrationPage({ onBackToLogin, onRegisterUser }) {
   const [formData, setFormData] = useState({
@@ -6,8 +9,11 @@ function RegistrationPage({ onBackToLogin, onRegisterUser }) {
     email: "",
     password: "",
     role: "candidate",
+    phone:"",
     profilePhoto: null,
   });
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -18,13 +24,45 @@ function RegistrationPage({ onBackToLogin, onRegisterUser }) {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setMessage("");
 
-    onRegisterUser({
-      ...formData,
-      profilePhoto: formData.profilePhoto?.name || "",
-    });
+    const payload = new FormData();
+    payload.append("name", formData.name);
+    payload.append("email", formData.email);
+    payload.append("password", formData.password);
+    payload.append("role", formData.role);
+    payload.append("phone", formData.phone || "");
+
+    if (formData.profilePhoto) {
+      payload.append("profilePhoto", formData.profilePhoto);
+    }
+
+    try {
+      const response = await api.post("/auth/register", payload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      setMessage(response.data?.message || "Registration successful.");
+      console.log("Registration response:", response.data);
+
+      setTimeout(() => {
+        onRegisterUser({
+          ...formData,
+          profilePhoto: formData.profilePhoto?.name || "",
+        });
+      }, 800);
+    } catch (error) {
+      setMessage(
+        getErrorMessage(error, "Registration failed. Please try again.")
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,6 +107,23 @@ function RegistrationPage({ onBackToLogin, onRegisterUser }) {
           </div>
 
           <div className="input-group">
+  <PhoneInput
+    international
+    defaultCountry="IN"
+    placeholder="Enter phone number"
+    value={formData.phone}
+    onChange={(value) =>
+      setFormData((prev) => ({
+        ...prev,
+        phone: value,
+      }))
+    }
+  />
+</div>
+
+      
+
+          <div className="input-group">
             <select
               name="role"
               value={formData.role}
@@ -96,8 +151,10 @@ function RegistrationPage({ onBackToLogin, onRegisterUser }) {
             <p className="selected-file">{formData.profilePhoto.name}</p>
           )}
 
+          {message && <p className="form-message">{message}</p>}
+
           <button type="submit" className="login-btn">
-            REGISTER
+            {loading ? "REGISTERING..." : "REGISTER"}
           </button>
 
           <button

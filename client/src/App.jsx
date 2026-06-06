@@ -2,7 +2,9 @@ import { useState } from "react";
 import ForgotPassword from "./components/ForgotPassword";
 import Login from "./components/Login";
 import RegistrationPage from "./components/registration_page";
+import ResetPassword from "./components/ResetPassword";
 import "./App.css";
+import AnimatedBackground from "./components/AnimatedBackground";
 
 const STORAGE_KEY = "registeredUsers";
 
@@ -23,6 +25,7 @@ const getInitialUsers = () => {
 function App() {
   const [page, setPage] = useState("login");
   const [registeredUsers, setRegisteredUsers] = useState(getInitialUsers);
+  const [resetEmail, setResetEmail] = useState("");
 
   const saveUsers = (users) => {
     setRegisteredUsers(users);
@@ -47,10 +50,23 @@ function App() {
     );
 
     saveUsers(updatedUsers);
+    setResetEmail("");
   };
 
+  const handleOtpVerified = (email) => {
+    setResetEmail(email);
+    setPage("reset-password");
+  };
+
+  let pageContent = (
+    <Login
+      onForgotPasswordClick={() => setPage("forgot-password")}
+      onRegisterClick={() => setPage("register")}
+    />
+  );
+
   if (page === "register") {
-    return (
+    pageContent = (
       <RegistrationPage
         onBackToLogin={() => setPage("login")}
         onRegisterUser={handleRegisterUser}
@@ -59,9 +75,18 @@ function App() {
   }
 
   if (page === "forgot-password") {
-    return (
+    pageContent = (
       <ForgotPassword
-        registeredUsers={registeredUsers}
+        onBackToLogin={() => setPage("login")}
+        onOtpVerified={handleOtpVerified}
+      />
+    );
+  }
+
+  if (page === "reset-password") {
+    pageContent = (
+      <ResetPassword
+        email={resetEmail}
         onBackToLogin={() => setPage("login")}
         onPasswordReset={handlePasswordReset}
       />
@@ -69,10 +94,10 @@ function App() {
   }
 
   return (
-    <Login
-      onForgotPasswordClick={() => setPage("forgot-password")}
-      onRegisterClick={() => setPage("register")}
-    />
+    <>
+      <AnimatedBackground />
+      {pageContent}
+    </>
   );
 }
 

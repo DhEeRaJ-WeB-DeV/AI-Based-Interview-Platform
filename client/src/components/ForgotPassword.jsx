@@ -1,53 +1,51 @@
 import { useState } from "react";
+import api, { getErrorMessage } from "../api/axiosClient";
 
-function ForgotPassword({ registeredUsers, onBackToLogin, onPasswordReset }) {
+function ForgotPassword({ onBackToLogin, onOtpVerified }) {
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleEmailSubmit = (e) => {
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
-
-    const registeredUser = registeredUsers.find(
-      (user) => user.email.toLowerCase() === email.toLowerCase()
-    );
-
-    if (!registeredUser) {
-      setMessage("This email is not registered.");
-      return;
-    }
-
-    const nextOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(nextOtp);
-    setMessage("OTP sent to your registered email.");
-    console.log(`Forgot password OTP for ${email}: ${nextOtp}`);
-    setStep("otp");
-  };
-
-  const handleOtpSubmit = (e) => {
-    e.preventDefault();
-
-    if (otp !== generatedOtp) {
-      setMessage("Invalid OTP. Please try again.");
-      return;
-    }
-
+    setLoading(true);
     setMessage("");
-    setStep("password");
+
+    try {
+      const response = await api.post("/auth/forgot-password", { email });
+      setMessage(response.data?.message || "OTP sent to your registered email.");
+      console.log("Forgot password response:", response.data);
+      setStep("otp");
+    } catch (error) {
+      setMessage(
+        getErrorMessage(error, "Unable to send OTP. Please try again.")
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handleOtpSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setMessage("");
 
-    onPasswordReset(email, newPassword);
-    setMessage("Password updated. Redirecting to login...");
+    try {
+      const response = await api.post("/auth/verify-otp", {
+        email,
+        otp,
+      });
 
-    setTimeout(() => {
-      onBackToLogin();
-    }, 1200);
+      setMessage(response.data?.message || "OTP verified.");
+      console.log("OTP verification response:", response.data);
+      onOtpVerified(email);
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Invalid OTP. Please try again."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -72,7 +70,7 @@ function ForgotPassword({ registeredUsers, onBackToLogin, onPasswordReset }) {
             {message && <p className="form-message">{message}</p>}
 
             <button type="submit" className="login-btn">
-              SEND OTP
+              {loading ? "SENDING..." : "SEND OTP"}
             </button>
           </form>
         )}
@@ -94,27 +92,7 @@ function ForgotPassword({ registeredUsers, onBackToLogin, onPasswordReset }) {
             {message && <p className="form-message">{message}</p>}
 
             <button type="submit" className="login-btn">
-              VERIFY OTP
-            </button>
-          </form>
-        )}
-
-        {step === "password" && (
-          <form onSubmit={handlePasswordSubmit}>
-            <div className="input-group">
-              <input
-                type="password"
-                placeholder="Enter New Password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            {message && <p className="form-message">{message}</p>}
-
-            <button type="submit" className="login-btn">
-              UPDATE PASSWORD
+              {loading ? "VERIFYING..." : "VERIFY OTP"}
             </button>
           </form>
         )}

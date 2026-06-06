@@ -1,16 +1,34 @@
 import { useState } from "react";
+import api, { getErrorMessage } from "../api/axiosClient";
 
 function Login({ onForgotPasswordClick, onRegisterClick }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setMessage("");
 
-    console.log({
-      email,
-      password,
-    });
+    try {
+      const response = await api.post("/auth/login", {
+        email,
+        password,
+      });
+
+      if (response.data?.token) {
+        localStorage.setItem("token", response.data.token);
+      }
+
+      setMessage(response.data?.message || "Login successful.");
+      console.log("Login response:", response.data);
+    } catch (error) {
+      setMessage(getErrorMessage(error, "Login failed. Please try again."));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -61,8 +79,10 @@ function Login({ onForgotPasswordClick, onRegisterClick }) {
           </div>
 
           <button type="submit" className="login-btn">
-            LOGIN
+            {loading ? "LOGGING IN..." : "LOGIN"}
           </button>
+
+          {message && <p className="form-message">{message}</p>}
 
           <button
             type="button"
