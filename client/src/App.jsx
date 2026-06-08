@@ -26,6 +26,7 @@ function App() {
   const [page, setPage] = useState("login");
   const [registeredUsers, setRegisteredUsers] = useState(getInitialUsers);
   const [resetEmail, setResetEmail] = useState("");
+  const [resetOtp, setResetOtp] = useState("");
 
   const saveUsers = (users) => {
     setRegisteredUsers(users);
@@ -51,10 +52,12 @@ function App() {
 
     saveUsers(updatedUsers);
     setResetEmail("");
+    setResetOtp("");
   };
 
-  const handleOtpVerified = (email) => {
+  const handleOtpVerified = (email, otp) => {
     setResetEmail(email);
+    setResetOtp(otp);
     setPage("reset-password");
   };
 
@@ -87,6 +90,7 @@ function App() {
     pageContent = (
       <ResetPassword
         email={resetEmail}
+        otp={resetOtp}
         onBackToLogin={() => setPage("login")}
         onPasswordReset={handlePasswordReset}
       />

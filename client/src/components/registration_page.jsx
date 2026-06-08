@@ -29,23 +29,19 @@ function RegistrationPage({ onBackToLogin, onRegisterUser }) {
     setLoading(true);
     setMessage("");
 
-    const payload = new FormData();
-    payload.append("name", formData.name);
-    payload.append("email", formData.email);
-    payload.append("password", formData.password);
-    payload.append("role", formData.role);
-    payload.append("phone", formData.phone || "");
+      const phoneNumber = (formData.phone || "").replace(/\D/g, "").slice(-10);
 
-    if (formData.profilePhoto) {
-      payload.append("profilePhoto", formData.profilePhoto);
-    }
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      password: formData.password,
+      role: formData.role,
+      ph_no: phoneNumber,
+      profile_photo: formData.profilePhoto?.name || "",
+    };
 
     try {
-      const response = await api.post("/auth/register", payload, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await api.post("/auth/register", payload);
 
       setMessage(response.data?.message || "Registration successful.");
       console.log("Registration response:", response.data);

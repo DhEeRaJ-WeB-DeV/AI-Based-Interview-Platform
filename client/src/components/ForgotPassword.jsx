@@ -40,7 +40,7 @@ function ForgotPassword({ onBackToLogin, onOtpVerified }) {
 
       setMessage(response.data?.message || "OTP verified.");
       console.log("OTP verification response:", response.data);
-      onOtpVerified(email);
+      onOtpVerified(email, otp);
     } catch (error) {
       setMessage(getErrorMessage(error, "Invalid OTP. Please try again."));
     } finally {
