@@ -64,6 +64,7 @@ const registerUser = async (req, res) => {
             });
         }
 
+
         const hashedPassword =
             await bcrypt.hash(password, 10);
 
@@ -187,6 +188,49 @@ const forgotPassword = async (req, res) => {
     }
 };
 
+
+const verifyOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({
+                message: "Email and OTP are required"
+            });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        const hashedOtp = crypto
+            .createHash("sha256")
+            .update(otp)
+            .digest("hex");
+
+        const user = await User.findOne({
+            email: normalizedEmail,
+            resetPasswordOtp: hashedOtp,
+            resetPasswordOtpExpire: {
+                $gt: Date.now()
+            }
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                message: "Invalid or expired OTP"
+            });
+        }
+
+        res.status(200).json({
+            message: "OTP verified successfully"
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: error.message
+        });
+    }
+};
+
 const resetPassword = async (req, res) => {
     try {
         const { email, otp, password } = req.body;
@@ -239,5 +283,6 @@ module.exports = {
     registerUser,
     loginUser,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    verifyOtp
 };
