@@ -29,12 +29,13 @@ function RegistrationPage({ onBackToLogin, onRegisterUser }) {
     setLoading(true);
     setMessage("");
 
+    const phoneDigits = (formData.phone || "").replace(/\D/g, "").slice(-10);
     const payload = new FormData();
     payload.append("name", formData.name);
     payload.append("email", formData.email);
     payload.append("password", formData.password);
     payload.append("role", formData.role);
-    payload.append("phone", formData.phone || "");
+    payload.append("ph_no", phoneDigits);
 
     if (formData.profilePhoto) {
       payload.append("profilePhoto", formData.profilePhoto);
@@ -53,7 +54,8 @@ function RegistrationPage({ onBackToLogin, onRegisterUser }) {
       setTimeout(() => {
         onRegisterUser({
           ...formData,
-          profilePhoto: formData.profilePhoto?.name || "",
+          phone: phoneDigits,
+          profilePhoto: response.data?.user?.profile_photo || "",
         });
       }, 800);
     } catch (error) {

@@ -5,6 +5,7 @@ function ForgotPassword({ onBackToLogin, onOtpVerified }) {
   const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -16,6 +17,7 @@ function ForgotPassword({ onBackToLogin, onOtpVerified }) {
     try {
       const response = await api.post("/auth/forgot-password", { email });
       setMessage(response.data?.message || "OTP sent to your registered email.");
+      setProfilePhoto(response.data?.user?.profile_photo || "");
       console.log("Forgot password response:", response.data);
       setStep("otp");
     } catch (error) {
@@ -40,7 +42,7 @@ function ForgotPassword({ onBackToLogin, onOtpVerified }) {
 
       setMessage(response.data?.message || "OTP verified.");
       console.log("OTP verification response:", response.data);
-      onOtpVerified(email);
+      onOtpVerified(email, otp);
     } catch (error) {
       setMessage(getErrorMessage(error, "Invalid OTP. Please try again."));
     } finally {
@@ -51,7 +53,13 @@ function ForgotPassword({ onBackToLogin, onOtpVerified }) {
   return (
     <div className="login-container">
       <div className="login-card forgot-card">
-        <div className="profile-icon">FP</div>
+        <div className="profile-icon profile-photo-icon">
+          {profilePhoto ? (
+            <img src={profilePhoto} alt="Profile" />
+          ) : (
+            "FP"
+          )}
+        </div>
 
         <h2>Forgot Password</h2>
 

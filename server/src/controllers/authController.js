@@ -14,6 +14,22 @@ const createMailTransporter = () => {
     });
 };
 
+const sendPasswordResetOtp = async (user, otp) => {
+    if (process.env.EMAIL_DEBUG_OTP === "true") {
+        console.log(`Password reset OTP for ${user.email}: ${otp}`);
+        return;
+    }
+
+    const transporter = createMailTransporter();
+
+    await transporter.sendMail({
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: user.email,
+        subject: "Password reset OTP",
+        text: `Your password reset OTP is ${otp}. It will expire in 10 minutes.`
+    });
+};
+
 const createToken = (user) => {
     return jwt.sign(
         {
@@ -25,6 +41,16 @@ const createToken = (user) => {
     );
 };
 
+const getProfilePhotoDataUri = (user) => {
+    if (!user.profile_photo?.data || !user.profile_photo?.contentType) {
+        return "";
+    }
+
+    const base64Image = Buffer.from(user.profile_photo.data).toString("base64");
+
+    return `data:${user.profile_photo.contentType};base64,${base64Image}`;
+};
+
 const formatUserResponse = (user) => {
     return {
         id: user._id,
@@ -32,7 +58,7 @@ const formatUserResponse = (user) => {
         email: user.email,
         role: user.role,
         ph_no: user.ph_no,
-        profile_photo: user.profile_photo
+        profile_photo: getProfilePhotoDataUri(user)
     };
 };
 
@@ -41,7 +67,7 @@ const formatUserResponse = (user) => {
 const registerUser = async (req, res) => {
     try {
 
-        const { name, email, ph_no, password, role, profile_photo } = req.body;
+        const { name, email, ph_no, password, role } = req.body;
 
         if (!name || !email || !ph_no || !password || !role) {
             return res.status(400).json({
@@ -73,7 +99,12 @@ const registerUser = async (req, res) => {
             ph_no: ph_no.trim(),
             password: hashedPassword,
             role: role.trim(),
-            profile_photo
+            profile_photo: req.file
+                ? {
+                    data: req.file.buffer,
+                    contentType: req.file.mimetype
+                }
+                : undefined
         });
 
         res.status(201).json({
@@ -167,17 +198,63 @@ const forgotPassword = async (req, res) => {
 
         await user.save();
 
-        const transporter = createMailTransporter();
+        try {
+            await sendPasswordResetOtp(user, otp);
+        } catch (mailError) {
+            if (mailError.code === "EAUTH" || mailError.responseCode === 535) {
+                return res.status(500).json({
+                    message: "Gmail rejected the email login. Use a Gmail App Password in EMAIL_PASS, not your normal Gmail password."
+                });
+            }
 
-        await transporter.sendMail({
-            from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-            to: user.email,
-            subject: "Password reset OTP",
-            text: `Your password reset OTP is ${otp}. It will expire in 10 minutes.`
-        });
+            throw mailError;
+        }
 
         res.status(200).json({
-            message: "Password reset OTP sent to your email"
+            message: "Password reset OTP sent to your email",
+            user: formatUserResponse(user)
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            message: error.message
+        });
+    }
+};
+
+const verifyOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({
+                message: "Email and OTP are required"
+            });
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+
+        const hashedOtp = crypto
+            .createHash("sha256")
+            .update(otp)
+            .digest("hex");
+
+        const user = await User.findOne({
+            email: normalizedEmail,
+            resetPasswordOtp: hashedOtp,
+            resetPasswordOtpExpire: {
+                $gt: Date.now()
+            }
+        });
+
+        if (!user) {
+            return res.status(400).json({
+                message: "Invalid or expired OTP"
+            });
+        }
+
+        res.status(200).json({
+            message: "OTP verified successfully"
         });
 
     } catch (error) {
@@ -239,5 +316,6 @@ module.exports = {
     registerUser,
     loginUser,
     forgotPassword,
+    verifyOtp,
     resetPassword
 };

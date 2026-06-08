@@ -1,7 +1,7 @@
 import { useState } from "react";
 import api, { getErrorMessage } from "../api/axiosClient";
 
-function ResetPassword({ email, onBackToLogin, onPasswordReset }) {
+function ResetPassword({ email, otp, onBackToLogin, onPasswordReset }) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -21,6 +21,7 @@ function ResetPassword({ email, onBackToLogin, onPasswordReset }) {
     try {
       const response = await api.post("/auth/reset-password", {
         email,
+        otp,
         password: newPassword,
         confirmPassword,
       });

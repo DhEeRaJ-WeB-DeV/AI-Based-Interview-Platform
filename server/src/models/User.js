@@ -31,9 +31,8 @@ const userSchema = new mongoose.Schema({
     },
 
     profile_photo: {
-        type: String,
-        default: "",
-        trim: true
+        data: Buffer,
+        contentType: String
     },
 
     resetPasswordOtp: {
