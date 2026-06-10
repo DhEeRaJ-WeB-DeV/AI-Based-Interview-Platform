@@ -1,7 +1,7 @@
 import { useState } from "react";
-import api, { getErrorMessage } from "../api/axiosClient";
+import api, { getErrorMessage } from "../../api/axiosClient";
 
-function Login({ onForgotPasswordClick, onRegisterClick }) {
+function Login({ onForgotPasswordClick, onLoginSuccess, onRegisterClick }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -24,6 +24,7 @@ function Login({ onForgotPasswordClick, onRegisterClick }) {
 
       setMessage(response.data?.message || "Login successful.");
       console.log("Login response:", response.data);
+      onLoginSuccess(response.data?.user);
     } catch (error) {
       setMessage(getErrorMessage(error, "Login failed. Please try again."));
     } finally {

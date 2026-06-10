@@ -1,7 +1,7 @@
 import { useState } from "react";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import api, { getErrorMessage } from "../api/axiosClient";
+import api, { getErrorMessage } from "../../api/axiosClient";
 
 function RegistrationPage({ onBackToLogin, onRegisterUser }) {
   const [formData, setFormData] = useState({

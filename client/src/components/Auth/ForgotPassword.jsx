@@ -1,5 +1,5 @@
 import { useState } from "react";
-import api, { getErrorMessage } from "../api/axiosClient";
+import api, { getErrorMessage } from "../../api/axiosClient";
 
 function ForgotPassword({ onBackToLogin, onOtpVerified }) {
   const [step, setStep] = useState("email");
