@@ -202,11 +202,6 @@ try {
 
             message:
                 "Resume processed successfully",
-
-            extractedText,
-
-            resume,
-
             profileData
 
         });

@@ -1,57 +1,106 @@
-import React, { useState } from "react";
-import { UploadCloud, FileText, Trash2 } from "lucide-react";
+import { FileText, Trash2, UploadCloud } from "lucide-react";
+import { useState } from "react";
+import api from "../../api/axiosClient";
 
 const MyProfile = ({ user }) => {
   const [resume, setResume] = useState(null);
 
- const [profileData, setProfileData] = useState({
-  personalDetails: {
-    name: user?.name || "",
-    email: user?.email || "",
-    phone: "",
-  },
+  const [profileData, setProfileData] = useState({
+  name: "",
+  phone: "",
+  email: "",
 
-  skills: "",
-
-  workExperience: {
-    designation: "",
-    company: "",
-    dates: "",
-    description: "",
-    responsibilities: "",
-  },
-
-  projects: {
-    title: "",
-    technologiesUsed: "",
-    description: "",
-  },
+  skills: [],
 
   education: {
     institution: "",
     degree: "",
+    years: "",
     location: "",
-    graduationYear: "",
     gpa: "",
   },
 
-  certifications: {
-    professionalCertification: "",
+  projects: {
+    title: "",
+    technologies: [],
+    description: "",
   },
+
+  experience: {
+    designation: "",
+    company: "",
+    dates: "",
+    description: "",
+  },
+
+  certifications: [],
 });
 
-  const handleResumeUpload = (e) => {
+  const handleResumeUpload = async (e) => {
     const file = e.target.files[0];
 
-    if (file) {
-      setResume(file);
+    if (!file) return;
 
-      console.log("Resume Uploaded:", file.name);
+    setResume(file);
 
-      // Later:
-      // Send file to backend
-      // Parse Resume
-      // Auto fill profileData
+    try {
+      const formData = new FormData();
+      formData.append("resume", file);
+
+      const token = localStorage.getItem("token");
+
+      const response = await api.post(
+        "/candidate/upload-resume",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+            Authorization: token ? `Bearer ${token}` : undefined,
+          },
+        }
+      );
+
+      const parsedData = response.data?.profileData;
+
+      setProfileData({
+  name: parsedData.name || "",
+  phone: parsedData.phone || "",
+  email: parsedData.email || "",
+
+  skills: parsedData.skills || [],
+
+  education:
+    parsedData.education || {
+      institution: "",
+      degree: "",
+      years: "",
+      location: "",
+      gpa: "",
+    },
+
+  projects:
+    parsedData.projects || {
+      title: "",
+      technologies: [],
+      description: "",
+    },
+
+  experience:
+    parsedData.experience || {
+      designation: "",
+      company: "",
+      dates: "",
+      description: "",
+    },
+
+  certifications:
+    parsedData.certifications || [],
+});
+
+      alert("Resume parsed successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to parse resume.");
     }
   };
 
@@ -62,10 +111,7 @@ const MyProfile = ({ user }) => {
   const handlePersonalChange = (field, value) => {
     setProfileData({
       ...profileData,
-      personalDetails: {
-        ...profileData.personalDetails,
-        [field]: value,
-      },
+      [field]: value,
     });
   };
 
@@ -148,9 +194,12 @@ const MyProfile = ({ user }) => {
           <input
             type="text"
             placeholder="Full Name"
-            value={profileData.personalDetails.name}
+            value={profileData.name}
             onChange={(e) =>
-              handlePersonalChange("name", e.target.value)
+              setProfileData({
+                ...profileData,
+                name: e.target.value,
+              })
             }
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
           />
@@ -158,9 +207,12 @@ const MyProfile = ({ user }) => {
           <input
             type="email"
             placeholder="Email"
-            value={profileData.personalDetails.email}
+            value={profileData.email}
             onChange={(e) =>
-              handlePersonalChange("email", e.target.value)
+              setProfileData({
+                ...profileData,
+                email: e.target.value,
+              })
             }
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
           />
@@ -168,9 +220,12 @@ const MyProfile = ({ user }) => {
           <input
             type="text"
             placeholder="Phone Number"
-            value={profileData.personalDetails.phone}
+            value={profileData.phone}
             onChange={(e) =>
-              handlePersonalChange("phone", e.target.value)
+              setProfileData({
+                ...profileData,
+                phone: e.target.value,
+              })
             }
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
           />
@@ -187,13 +242,13 @@ const MyProfile = ({ user }) => {
         <textarea
           rows="4"
           placeholder="React, Node.js, Python, AWS, Docker"
-          value={profileData.skills}
+          value={profileData.skills.join(", ")}
           onChange={(e) =>
-            setProfileData({
-              ...profileData,
-              skills: e.target.value,
-            })
-          }
+  setProfileData({
+    ...profileData,
+    skills: e.target.value.split(",").map(s => s.trim())
+  })
+}
           className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
         />
       </div>
@@ -211,33 +266,67 @@ const MyProfile = ({ user }) => {
             type="text"
             placeholder="designation"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.experience.designation}
+onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    experience: {
+      ...profileData.experience,
+      designation: e.target.value,
+    },
+  })
+}
           />
 
           <input
             type="text"
             placeholder="company"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.experience.company}
+onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    experience: {
+      ...profileData.experience,
+      company: e.target.value,
+    },
+  })
+}
           />
 
           <input
             type="text"
             placeholder="dates"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.experience.dates}
+onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    experience: {
+      ...profileData.experience,
+      dates: e.target.value,
+    },
+  })
+}
           />
 
-           <input
+          <input
             type="text"
             placeholder="description"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+           value={profileData.experience.description}
+onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    experience: {
+      ...profileData.experience,
+      description: e.target.value,
+    },
+  })
+}
           />
 
         </div>
-
-        <textarea
-          rows="4"
-          placeholder="Responsibilities"
-          className="w-full mt-4 bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
-        />
       </div>
 
       {/* Projects */}
@@ -251,18 +340,51 @@ const MyProfile = ({ user }) => {
           type="text"
           placeholder="Title"
           className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white mb-4"
+          value={profileData.projects.title}
+onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    projects: {
+      ...profileData.projects,
+      title: e.target.value,
+    },
+  })
+}
+
         />
 
         <input
           type="text"
           placeholder="Technologies Used"
           className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white mb-4"
+          value={profileData.projects.technologies?.join(",")}
+onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    projects: {
+      ...profileData.projects,
+      technologies: e.target.value
+        .split(",")
+        .map((t) => t.trim()),
+    },
+  })
+}
         />
 
         <textarea
           rows="4"
           placeholder="Project Description"
           className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+          value={profileData.projects.description}
+onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    projects: {
+      ...profileData.projects,
+      description: e.target.value,
+    },
+  })
+}
         />
 
       </div>
@@ -277,35 +399,85 @@ const MyProfile = ({ user }) => {
         <div className="grid md:grid-cols-3 gap-4">
 
 
-             <input
+          <input
             type="text"
             placeholder="Institution"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.education.institution}
+            onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    education: {
+      ...profileData.education,
+      institution: e.target.value,
+    },
+  })
+}
           />
 
           <input
             type="text"
             placeholder="Degree"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.education.degree}
+            onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    education: {
+      ...profileData.education,
+      degree: e.target.value,
+    },
+  })
+}
           />
 
           <input
             type="text"
             placeholder="Location"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.education.location}
+            onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    education: {
+      ...profileData.education,
+      location: e.target.value,
+    },
+  })
+}
           />
 
           <input
             type="text"
             placeholder="Graduation Year"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.education.years}
+            onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    education: {
+      ...profileData.education,
+      years: e.target.value,
+    },
+  })
+}
           />
 
-          
+
           <input
             type="text"
             placeholder="GPA"
             className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            value={profileData.education.gpa}
+            onChange={(e) =>
+  setProfileData({
+    ...profileData,
+    education: {
+      ...profileData.education,
+      gpa: e.target.value,
+    },
+  })
+}
           />
 
 
@@ -323,6 +495,14 @@ const MyProfile = ({ user }) => {
           type="text"
           placeholder="Professional Certifications"
           className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white mb-4"
+          value={profileData.certifications.join(",")}
+          onChange={(e) =>
+  setProfileData({
+    ...profileData,
+      certifications: e.target.value,
+
+  })
+}
         />
       </div>
 
@@ -339,7 +519,7 @@ const MyProfile = ({ user }) => {
       </div>
 
     </div>
-  );
+  )
 };
 
 export default MyProfile;
