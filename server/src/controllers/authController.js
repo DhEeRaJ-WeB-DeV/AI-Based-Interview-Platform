@@ -16,7 +16,6 @@ const createMailTransporter = () => {
 
 const sendPasswordResetOtp = async (user, otp) => {
     if (process.env.EMAIL_DEBUG_OTP === "true") {
-        console.log(`Password reset OTP for ${user.email}: ${otp}`);
         return;
     }
 
@@ -168,58 +167,50 @@ const loginUser = async (req, res) => {
 
 const forgotPassword = async (req, res) => {
     try {
-        const { email } = req.body;
+        const { email, method } = req.body; // method = "email" or "phone"
 
         if (!email) {
-            return res.status(400).json({
-                message: "Email is required"
-            });
+            return res.status(400).json({ message: "Email is required" });
         }
 
         const normalizedEmail = email.toLowerCase().trim();
-
-        const user = await User.findOne({
-            email: normalizedEmail
-        });
+        const user = await User.findOne({ email: normalizedEmail });
 
         if (!user) {
-            return res.status(404).json({
-                message: "User does not exist"
-            });
+            return res.status(404).json({ message: "User does not exist" });
         }
 
         const otp = crypto.randomInt(100000, 1000000).toString();
-        const hashedOtp = crypto
-            .createHash("sha256")
-            .update(otp)
-            .digest("hex");
-
-        user.resetPasswordOtp = hashedOtp;
+        user.resetPasswordOtp = otp;
         user.resetPasswordOtpExpire = Date.now() + 10 * 60 * 1000;
-
         await user.save();
 
-        try {
-            await sendPasswordResetOtp(user, otp);
-        } catch (mailError) {
-            if (mailError.code === "EAUTH" || mailError.responseCode === 535) {
-                return res.status(500).json({
-                    message: "Gmail rejected the email login. Use a Gmail App Password in EMAIL_PASS, not your normal Gmail password."
-                });
+        if (method === "phone") {
+            // Integrate SMS service here (Twilio, AWS SNS, etc.)
+            // For now just log it
+            console.log(`OTP for ${user.ph_no}: ${otp}`);
+            // await sendSmsOtp(user.ph_no, otp);
+        } else {
+            // default to email
+            try {
+                await sendPasswordResetOtp(user, otp);
+            } catch (mailError) {
+                if (mailError.code === "EAUTH" || mailError.responseCode === 535) {
+                    return res.status(500).json({
+                        message: "Gmail rejected the email login. Use a Gmail App Password."
+                    });
+                }
+                throw mailError;
             }
-
-            throw mailError;
         }
 
         res.status(200).json({
-            message: "Password reset OTP sent to your email",
+            message: `OTP sent to your registered ${method || "email"}`,
             user: formatUserResponse(user)
         });
 
     } catch (error) {
-        res.status(500).json({
-            message: error.message
-        });
+        res.status(500).json({ message: error.message });
     }
 };
 
@@ -235,14 +226,10 @@ const verifyOtp = async (req, res) => {
 
         const normalizedEmail = email.toLowerCase().trim();
 
-        const hashedOtp = crypto
-            .createHash("sha256")
-            .update(otp)
-            .digest("hex");
 
         const user = await User.findOne({
             email: normalizedEmail,
-            resetPasswordOtp: hashedOtp,
+            resetPasswordOtp: otp,
             resetPasswordOtpExpire: {
                 $gt: Date.now()
             }
@@ -277,14 +264,10 @@ const resetPassword = async (req, res) => {
 
         const normalizedEmail = email.toLowerCase().trim();
 
-        const hashedOtp = crypto
-            .createHash("sha256")
-            .update(otp)
-            .digest("hex");
 
         const user = await User.findOne({
             email: normalizedEmail,
-            resetPasswordOtp: hashedOtp,
+            resetPasswordOtp: otp,
             resetPasswordOtpExpire: {
                 $gt: Date.now()
             }
