@@ -263,7 +263,7 @@ const handleResumeUpload = async (e) => {
                 name: e.target.value,
               })
             }
-            className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
           />
 
           <input
@@ -276,7 +276,7 @@ const handleResumeUpload = async (e) => {
                 email: e.target.value,
               })
             }
-            className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
           />
 
           <input
@@ -289,7 +289,7 @@ const handleResumeUpload = async (e) => {
                 phone: e.target.value,
               })
             }
-            className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+            className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
           />
 
         </div>
@@ -311,7 +311,7 @@ const handleResumeUpload = async (e) => {
               skills: parseCommaSeparated(e.target.value),
             })
           }
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         />
       </div>
 
@@ -331,7 +331,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Designation"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={exp.designation || ""}
         onChange={(e) => {
           const updatedExperience = [...profileData.experience];
@@ -347,7 +347,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Company"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={exp.company || ""}
         onChange={(e) => {
           const updatedExperience = [...profileData.experience];
@@ -363,7 +363,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Dates"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={exp.dates || ""}
         onChange={(e) => {
           const updatedExperience = [...profileData.experience];
@@ -379,7 +379,7 @@ const handleResumeUpload = async (e) => {
       <textarea
         rows="4"
         placeholder="Description"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={formatDescriptionForInput(exp.description)}
         onChange={(e) => {
           const updatedExperience = [...profileData.experience];
@@ -435,7 +435,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Title"
-        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white mb-4"
+        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400 mb-4"
         value={project.title || ""}
         onChange={(e) => {
           const updatedProjects = [...profileData.projects];
@@ -451,7 +451,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Technologies Used"
-        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white mb-4"
+        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400 mb-4"
         value={formatArrayForInput(project.technologies)}
         onChange={(e) => {
           const updatedProjects = [...profileData.projects];
@@ -468,7 +468,7 @@ const handleResumeUpload = async (e) => {
       <textarea
         rows="4"
         placeholder="Project Description"
-        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={project.description || ""}
         onChange={(e) => {
           const updatedProjects = [...profileData.projects];
@@ -522,7 +522,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Institution"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={edu.institution || ""}
         onChange={(e) => {
           const updatedEducation = [...profileData.education];
@@ -538,7 +538,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Degree"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={edu.degree || ""}
         onChange={(e) => {
           const updatedEducation = [...profileData.education];
@@ -554,7 +554,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Location"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={edu.location || ""}
         onChange={(e) => {
           const updatedEducation = [...profileData.education];
@@ -570,7 +570,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="Graduation Year"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={edu.years || ""}
         onChange={(e) => {
           const updatedEducation = [...profileData.education];
@@ -586,7 +586,7 @@ const handleResumeUpload = async (e) => {
       <input
         type="text"
         placeholder="GPA"
-        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400"
         value={edu.gpa || ""}
         onChange={(e) => {
           const updatedEducation = [...profileData.education];
@@ -636,7 +636,7 @@ const handleResumeUpload = async (e) => {
         <input
           type="text"
           placeholder="Professional Certifications"
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white mb-4"
+          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400 mb-4"
           value={formatArrayForInput(profileData.certifications)}
           onChange={(e) =>
             setProfileData({

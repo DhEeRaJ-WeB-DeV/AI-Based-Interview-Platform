@@ -1,15 +1,17 @@
-import React, { useState } from "react";
 import {
-  Search,
   BarChart3,
-  User,
-  Settings,
-  LogOut,
   Bell,
   ChevronDown,
+  LogOut,
   Menu,
+  Search,
+  Settings,
+  User,
   X,
 } from "lucide-react";
+import { useState } from "react";
+import PostInterview from "../dashboard_2/Recruiter_dashboard/Post_interview";
+import SearchCandidates from "../dashboard_2/Recruiter_dashboard/SearchCandidates";
 
 const RecruiterLayout = ({ children, onLogout,  onDeleteAccount ,user }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -19,7 +21,23 @@ const RecruiterLayout = ({ children, onLogout,  onDeleteAccount ,user }) => {
   const recruiterNavItems = [
     { name: "Search Candidates", icon: Search },
     { name: "Performance Reports", icon: BarChart3 },
+    {name: "AI interview setup", icon: Settings}
   ];
+const renderContent = () => {
+  switch (activeItem) {
+    case "Search Candidates":
+      return <SearchCandidates />;
+
+    case "Performance Reports":
+      return <div>Performance Reports Page</div>;
+
+    case "AI interview setup":
+      return <PostInterview />;
+
+    default:
+      return <div>Select a section</div>;
+  }
+};
 
   return (
     <div className="min-h-screen w-full text-slate-100 flex flex-col bg-[#0a0f1d] overflow-x-hidden">
@@ -78,14 +96,11 @@ const RecruiterLayout = ({ children, onLogout,  onDeleteAccount ,user }) => {
             className="flex items-center gap-2 bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 rounded-full pl-1 pr-3 py-1"
           >
             <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-500">
-              <img
-                src={
-                  user?.profile_photo ||
-                  "https://via.placeholder.com/150"
-                }
-                alt="Profile"
-                className="w-full h-full object-cover"
-              />
+                  <img
+                    src="https://placehold.co/150"
+                    alt="profile"
+                    className="rounded-full"
+                  />
             </div>
 
             <span className="hidden sm:block text-white text-xs font-medium max-w-28 truncate">
@@ -226,7 +241,7 @@ const RecruiterLayout = ({ children, onLogout,  onDeleteAccount ,user }) => {
         {/* Main Content */}
         <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">
           <div className="max-w-7xl mx-auto">
-            {children}
+            {renderContent()}
           </div>
         </main>
 

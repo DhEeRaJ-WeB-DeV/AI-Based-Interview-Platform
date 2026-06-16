@@ -6,6 +6,18 @@ body,
   overflow-x: hidden;
 }
 
+/* Fix placeholder text color */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+/* Force white color for all headings */
+h1, h2, h3, h4, h5, h6 {
+  color: #ffffff !important;
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;

@@ -53,6 +53,7 @@ const CandidateLayout = ({ children, onLogout, onDeleteAccount ,user }) => {
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-bold">
             C
           </div>
+          
 
           <span className="font-semibold text-base sm:text-lg text-slate-200">
             Candidate Portal
@@ -107,12 +108,12 @@ const CandidateLayout = ({ children, onLogout, onDeleteAccount ,user }) => {
           {isProfileOpen && (
             <div className="absolute right-0 mt-2 w-56 rounded-xl bg-[#11192e] border border-slate-800 shadow-xl py-2 z-50">
 
-              <button
+                                    <button
                 onClick={() => {
                   setActiveItem("My Profile");
                   setIsProfileOpen(false);
                 }}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800/50"
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800/60 hover:text-white transition-colors"
               >
                 <User className="w-4 h-4" />
                 My Profile
