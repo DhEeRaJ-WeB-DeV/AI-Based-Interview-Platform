@@ -1,6 +1,6 @@
 import { FileText, Trash2, UploadCloud } from "lucide-react";
 import { useState } from "react";
-import api from "../../api/axiosClient";
+import api from "../../../api/axiosClient";
 
 const MyProfile = ({ user }) => {
   const [resume, setResume] = useState(null);

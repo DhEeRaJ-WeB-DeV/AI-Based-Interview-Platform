@@ -32,7 +32,7 @@ function ForgotPassword({ onBackToLogin, onOtpVerified, userEmail, userPhone }) 
     e.preventDefault();
     setLoading(true);
     setMessage("");
-    console.log("Email:", email);
+    console.log("Email:", userEmail);
     console.log("OTP:", otp);
 
     try {

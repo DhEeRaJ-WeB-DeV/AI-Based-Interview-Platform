@@ -10,8 +10,8 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import PostInterview from "../dashboard_2/Recruiter_dashboard/Post_interview";
-import SearchCandidates from "../dashboard_2/Recruiter_dashboard/SearchCandidates";
+import PostInterview from "../components/dashboard/recruiter/Post_interview";
+import SearchCandidates from "../components/dashboard/recruiter/SearchCandidates";
 
 const RecruiterLayout = ({ children, onLogout,  onDeleteAccount ,user }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);

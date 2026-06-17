@@ -7,6 +7,7 @@ const authRoutes = require("./src/routes/authRoutes")
 const app = express();
 const recuiterRoutes = require("./src/routes/recuiterRoutes")
 const candidateRoutes = require('./src/routes/candidateRoutes')
+const interviewPostRoutes = require("./src/routes/interviewPostRoutes")
 connectDB();
 
 app.use(cors({
@@ -16,7 +17,7 @@ app.use(express.json());
 
 app.use("/api/auth",authRoutes);
 app.use("/api/candidate", candidateRoutes);
-
+app.use("/api/interviews", interviewPostRoutes);
 
 app.listen(5000, () => {
     console.log(`Server running on port 5000`);
