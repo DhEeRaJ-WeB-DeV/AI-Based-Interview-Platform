@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
 
+
 const TimeLeft = ({ expiresAt }) => {
   const [timeLeft, setTimeLeft] = useState("");
-
+  
   useEffect(() => {
     const calc = () => {
       const diff = new Date(expiresAt) - new Date();
@@ -16,11 +17,11 @@ const TimeLeft = ({ expiresAt }) => {
     const interval = setInterval(calc, 30000);
     return () => clearInterval(interval);
   }, [expiresAt]);
-
+  
   return <span className="text-xs text-yellow-400 font-medium">{timeLeft}</span>;
 };
 
-const CandidateDashboard = () => {
+const CandidateDashboard = ({onAttend}) => {
   const [posts, setPosts]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
@@ -38,11 +39,9 @@ const CandidateDashboard = () => {
         }
         // ─────────────────────────────────────────────
 
-        const { data } = await api.get("/interviews/dashboard", {
+        const { data } = await api.get("/interview-posts/dashboard", {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        console.log("Dashboard API response:", data); // check in browser console
 
         setPosts(data.posts || []);
       } catch (err) {
@@ -143,7 +142,7 @@ const CandidateDashboard = () => {
 
               {/* Button */}
               <button
-                onClick={() => handleAttend(post._id)}
+                onClick={() => onAttend(post)}
                 className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2 rounded-lg transition-colors"
               >
                 Start Interview

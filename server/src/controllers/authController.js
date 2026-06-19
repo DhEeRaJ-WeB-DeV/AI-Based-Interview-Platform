@@ -16,7 +16,7 @@ const createMailTransporter = () => {
 
 const sendPasswordResetOtp = async (user, otp) => {
     if (process.env.EMAIL_DEBUG_OTP === "true") {
-       
+
         return;
     }
 
@@ -168,7 +168,7 @@ const loginUser = async (req, res) => {
 
 const forgotPassword = async (req, res) => {
     try {
-        const { email, method } = req.body; // method = "email" or "phone"
+        const { email } = req.body;
 
         if (!email) {
             return res.status(400).json({ message: "Email is required" });
@@ -186,28 +186,21 @@ const forgotPassword = async (req, res) => {
         user.resetPasswordOtpExpire = Date.now() + 10 * 60 * 1000;
         await user.save();
 
-        if (method === "phone") {
-            // Integrate SMS service here (Twilio, AWS SNS, etc.)
-            // For now just log it
-            console.log(`OTP for ${user.ph_no}: ${otp}`);
-            // await sendSmsOtp(user.ph_no, otp);
-        } else {
-            // default to email
-            try {
-                await sendPasswordResetOtp(user, otp);
-            } catch (mailError) {
-                if (mailError.code === "EAUTH" || mailError.responseCode === 535) {
-                    return res.status(500).json({
-                        message: "Gmail rejected the email login. Use a Gmail App Password."
-                    });
-                }
-                throw mailError;
+
+        try {
+            await sendPasswordResetOtp(user, otp);
+        } catch (mailError) {
+            if (mailError.code === "EAUTH" || mailError.responseCode === 535) {
+                return res.status(500).json({
+                    message: "Gmail rejected the email login. Use a Gmail App Password."
+                });
             }
+            throw mailError;
         }
 
+
         res.status(200).json({
-            message: `OTP sent to your registered ${method || "email"}`,
-            user: formatUserResponse(user)
+            message: "OTP sent to your registered email"
         });
 
     } catch (error) {
@@ -242,6 +235,11 @@ const verifyOtp = async (req, res) => {
             });
         }
 
+        user.resetPasswordOtp = undefined;
+        user.canResetPassword = true;
+
+        await user.save();
+
         res.status(200).json({
             message: "OTP verified successfully"
         });
@@ -255,11 +253,11 @@ const verifyOtp = async (req, res) => {
 
 const resetPassword = async (req, res) => {
     try {
-        const { email, otp, password } = req.body;
+        const { email, password } = req.body;
 
-        if (!email || !otp || !password) {
+        if (!email || !password) {
             return res.status(400).json({
-                message: "Email, OTP and new password are required"
+                message: "Email and new password are required"
             });
         }
 
@@ -268,7 +266,6 @@ const resetPassword = async (req, res) => {
 
         const user = await User.findOne({
             email: normalizedEmail,
-            resetPasswordOtp: otp,
             resetPasswordOtpExpire: {
                 $gt: Date.now()
             }
@@ -280,8 +277,14 @@ const resetPassword = async (req, res) => {
             });
         }
 
+        if (!user.canResetPassword) {
+            return res.status(400).json({
+                message: "Invalid or expired OTP"
+            });
+        }
+
         user.password = await bcrypt.hash(password, 10);
-        user.resetPasswordOtp = undefined;
+        user.canResetPassword = undefined;
         user.resetPasswordOtpExpire = undefined;
 
         await user.save();

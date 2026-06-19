@@ -1,3 +1,4 @@
+const Result = require("../models/Result");
 const User  = require("../models/User")
 
 
@@ -14,6 +15,41 @@ const getCandidates = async (req, res) => {
 };
 
 
+const getPerformance = async (req, res) => {
+  try {
+
+    const recruiterId = req.user.id;
+
+    const results = await Result.find()
+      .populate("candidateId", "name email")
+      .populate({
+        path: "interviewId",
+        match: {
+          recruiterId
+        }
+      });
+
+    const filteredResults = results.filter(
+      r => r.interviewId
+    );
+
+    res.status(200).json({
+      success: true,
+      results: filteredResults
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+
+  }
+};
+
+
 module.exports = {
-    getCandidates
+    getCandidates,
+    getPerformance
 };

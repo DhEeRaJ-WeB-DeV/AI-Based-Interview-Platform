@@ -8,7 +8,7 @@ const pdf = require("pdf-parse");
 const mammoth = require("mammoth");
 const Tesseract = require("tesseract.js");
 const ai = require("../config/gemini");
-
+const cloudinary = require("../config/cloudinary")
 
 const uploadResume = async (req, res) => {
 
@@ -103,16 +103,29 @@ const uploadResume = async (req, res) => {
 
         // Store resume
 
-        const resume =
-            await Resume.create({
+const uploadResult =
+  await cloudinary.uploader.upload(
+    filePath,
+    {
+      folder: "resumes",
+      resource_type: "raw",
+    }
+  );
 
-                candidate: req.user.id,
+  fs.unlink(filePath, (err) => {
+  if (err) console.error(err);
+});
 
-                resumeUrl: filePath,
+const resume =
+  await Resume.create({
 
-                extractedText
+    candidate: req.user.id,
 
-            });
+    resumeUrl: uploadResult.secure_url,
+
+    extractedText
+
+  });
 
     // generating the response from the llm by providing the extracted content
         const prompt = `

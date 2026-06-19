@@ -14,8 +14,9 @@ import { useState } from "react";
 import PostInterview from "../components/dashboard/recruiter/Post_interview";
 import SearchCandidates from "../components/dashboard/recruiter/SearchCandidates";
 import RecruiterDashboard from "../components/dashboard/recruiter/Rec_InterviewDashboard";
+import PerformancePage from "../components/dashboard/recruiter/PerformanceAnalysis";
 
-const RecruiterLayout = ({ children, onLogout,  onDeleteAccount ,user }) => {
+const RecruiterLayout = ({ children, onLogout, user }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeItem, setActiveItem] = useState("Search Candidates");
@@ -31,8 +32,8 @@ const renderContent = () => {
     case "Search Candidates":
       return <SearchCandidates />;
 
-    case "Performance Reports":
-      return <div>Performance Reports Page</div>;
+ case "Performance Reports":
+      return <PerformancePage />;
 
     case "AI interview setup":
       return <PostInterview />;
@@ -140,13 +141,6 @@ const renderContent = () => {
 
             <hr className="border-slate-800 my-2" />
 
-              <button
-                onClick={onDeleteAccount}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-500 hover:bg-red-950/30"
-              >
-                <User className="w-4 h-4" />
-                Delete Account
-              </button>
 
               <button
                 onClick={onLogout}

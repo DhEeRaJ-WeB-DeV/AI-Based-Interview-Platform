@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema({
 
     resetPasswordOtpExpire: { type: Date },
 
+    canResetPassword: {type: Boolean},
+
     role:{
         type:String,
         enum:["admin","candidate","recruiter"],

@@ -1,25 +1,19 @@
 import { useState } from "react";
 import api, { getErrorMessage } from "../../api/axiosClient";
 
-function ForgotPassword({ onBackToLogin, onOtpVerified, userEmail, userPhone }) {
-  const [step, setStep] = useState("otp-options"); // skip email step
+function ForgotPassword({ onBackToLogin, onOtpVerified, userEmail }) {
+  const [step, setStep] = useState("send-otp");
   const [otp, setOtp] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [otpMethod, setOtpMethod] = useState(""); // "email" or "phone"
-  
 
-  const handleSendOtp = async (method) => {
+  const handleSendOtp = async () => {
     setLoading(true);
     setMessage("");
-    setOtpMethod(method);
 
     try {
-      await api.post("/auth/forgot-password", {
-        email: userEmail,
-        method // send "email" or "phone" to backend
-      });
-      setMessage(`OTP sent to your registered ${method}.`);
+      await api.post("/auth/forgot-password", { email: userEmail });
+      setMessage("OTP sent to your registered email.");
       setStep("otp");
     } catch (error) {
       setMessage(getErrorMessage(error, "Unable to send OTP. Please try again."));
@@ -32,13 +26,11 @@ function ForgotPassword({ onBackToLogin, onOtpVerified, userEmail, userPhone }) 
     e.preventDefault();
     setLoading(true);
     setMessage("");
-    console.log("Email:", userEmail);
-    console.log("OTP:", otp);
 
     try {
       const response = await api.post("/auth/verify-otp", {
         email: userEmail,
-        otp: otp.toString()
+        otp: otp.toString(),
       });
       setMessage(response.data?.message || "OTP verified.");
       onOtpVerified(userEmail, otp);
@@ -55,26 +47,15 @@ function ForgotPassword({ onBackToLogin, onOtpVerified, userEmail, userPhone }) 
         <div className="profile-icon profile-photo-icon">FP</div>
         <h2>Forgot Password</h2>
 
-        {step === "otp-options" && (
+        {step === "send-otp" && (
           <div className="otp-options">
-            <p>How would you like to receive the OTP?</p>
-
             {message && <p className="form-message">{message}</p>}
-
             <button
               className="login-btn"
-              onClick={() => handleSendOtp("email")}
+              onClick={handleSendOtp}
               disabled={loading}
             >
-              {loading && otpMethod === "email" ? "SENDING..." : "SEND OTP TO EMAIL"}
-            </button>
-
-            <button
-              className="login-btn"
-              onClick={() => handleSendOtp("phone")}
-              disabled={loading}
-            >
-              {loading && otpMethod === "phone" ? "SENDING..." : "SEND OTP TO MOBILE"}
+              {loading ? "SENDING..." : "SEND OTP TO EMAIL"}
             </button>
           </div>
         )}
@@ -102,9 +83,9 @@ function ForgotPassword({ onBackToLogin, onOtpVerified, userEmail, userPhone }) 
             <button
               type="button"
               className="register-text"
-              onClick={() => setStep("otp-options")}
+              onClick={() => setStep("send-otp")}
             >
-              Try another method
+              Resend OTP
             </button>
           </form>
         )}

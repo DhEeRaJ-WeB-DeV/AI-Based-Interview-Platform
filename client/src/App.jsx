@@ -8,22 +8,17 @@ import ResetPassword from "./components/Auth/ResetPassword";
 import CandidateLayout from "./layouts/CandidateLayout";
 import MyProfile from "./components/dashboard/candidate/MyProfile";
 import RecruiterLayout from "./layouts/RecruiterLayout";
+import CandidateDashboard from "./components/dashboard/candidate/InterviewDashboard";
+import InstructionPage from "./components/dashboard/candidate/Instruction";  // ← add
+import api from "./api/axiosClient";
 
 const STORAGE_KEY = "registeredUsers";
 const AUTH_USER_KEY = "authUser";
 
 const getInitialUsers = () => {
   const savedUsers = localStorage.getItem(STORAGE_KEY);
-
-  if (!savedUsers) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(savedUsers);
-  } catch {
-    return [];
-  }
+  if (!savedUsers) return [];
+  try { return JSON.parse(savedUsers); } catch { return []; }
 };
 
 function App() {
@@ -32,19 +27,12 @@ function App() {
   const [registeredUsers, setRegisteredUsers] = useState(getInitialUsers);
   const [currentUser, setCurrentUser] = useState(() => {
     const savedUser = localStorage.getItem(AUTH_USER_KEY);
-
-    if (!savedUser) {
-      return null;
-    }
-
-    try {
-      return JSON.parse(savedUser);
-    } catch {
-      return null;
-    }
+    if (!savedUser) return null;
+    try { return JSON.parse(savedUser); } catch { return null; }
   });
   const [resetEmail, setResetEmail] = useState("");
   const [resetOtp, setResetOtp] = useState("");
+  const [selectedPost, setSelectedPost] = useState(null);  // ← add
 
   const saveUsers = (users) => {
     setRegisteredUsers(users);
@@ -56,21 +44,13 @@ function App() {
       (registeredUser) =>
         registeredUser.email.toLowerCase() !== user.email.toLowerCase()
     );
-
     saveUsers([...filteredUsers, user]);
-
     setCurrentUser(user);
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-
     const role = user.role?.toLowerCase();
-
-    if (role === "candidate") {
-      setPage("candidate-portal");
-    } else if (role === "recruiter") {
-      setPage("recruiter-portal");
-    } else if (role === "admin") {
-      setPage("admin-portal");
-    }
+    if (role === "candidate")  setPage("candidate-portal");
+    else if (role === "recruiter") setPage("recruiter-portal");
+    else if (role === "admin") setPage("admin-portal");
   };
 
   const handlePasswordReset = (email, password) => {
@@ -79,7 +59,6 @@ function App() {
         ? { ...user, password }
         : user
     );
-
     saveUsers(updatedUsers);
     setResetEmail("");
     setResetOtp("");
@@ -94,19 +73,11 @@ function App() {
   const handleLoginSuccess = (user) => {
     setCurrentUser(user);
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-
-
     const role = user?.role?.toLowerCase();
-
-    if (role === "candidate") {
-      setPage("candidate-portal");
-    } else if (role === "recruiter") {
-      setPage("recruiter-portal");
-    } else if (role === "admin") {
-      setPage("admin-portal");
-    } else {
-      setPage("login");
-    }
+    if (role === "candidate")      setPage("candidate-portal");
+    else if (role === "recruiter") setPage("recruiter-portal");
+    else if (role === "admin")     setPage("admin-portal");
+    else                           setPage("login");
   };
 
   const handleLogout = () => {
@@ -116,46 +87,40 @@ function App() {
     setPage("login");
   };
 
-  const handleDeleteAccount = () => {
-    const confirmDelete = window.confirm(
-      "Are you sure you want to delete your account?"
-    );
-
-    if (!confirmDelete) return;
-
-    const updatedUsers = registeredUsers.filter(
-      (user) => user.email !== currentUser.email
-    );
-
-    setRegisteredUsers(updatedUsers);
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(updatedUsers)
-    );
-
-    localStorage.removeItem("token");
-    localStorage.removeItem(AUTH_USER_KEY);
-
-    setCurrentUser(null);
-    setPage("login");
-
-    alert("Account deleted successfully.");
-  };
+ 
 
   if (page === "recruiter-portal") {
     return (
       <RecruiterLayout
         user={currentUser}
         onLogout={handleLogout}
-        onDeleteAccount={handleDeleteAccount}
       >
-        <div className="text-white text-2xl">
-          Recruiter Dashboard
-        </div>
+        <div className="text-white text-2xl">Recruiter Dashboard</div>
       </RecruiterLayout>
     );
   }
 
+  if (page === "candidate-portal") {
+    return (
+      <CandidateLayout
+        user={currentUser}
+        onLogout={handleLogout}
+      >
+        {/* ── show instruction page or dashboard ── */}
+        {selectedPost ? (
+          <InstructionPage
+            post={selectedPost}
+            onBack={() => setSelectedPost(null)}
+            onStart={() => {
+              window.location.href = `/interview/${selectedPost._id}`;
+            }}
+          />
+        ) : (
+          <CandidateDashboard onAttend={(post) => setSelectedPost(post)} />
+        )}
+      </CandidateLayout>
+    );
+  }
 
   let pageContent = (
     <Login
@@ -195,18 +160,6 @@ function App() {
         onBackToLogin={() => setPage("login")}
         onPasswordReset={handlePasswordReset}
       />
-    );
-  }
-
-  if (page === "candidate-portal") {
-    return (
-      <CandidateLayout
-        user={currentUser}
-        onLogout={handleLogout}
-        onDeleteAccount={handleDeleteAccount}
-      >
-        <MyProfile user={currentUser} />
-      </CandidateLayout>
     );
   }
 

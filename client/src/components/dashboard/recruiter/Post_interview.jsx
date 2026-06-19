@@ -47,7 +47,7 @@ const PostInterview = () => {
     setLoading(true);
     try {
       const { data } = await api.post(
-        "/interviews/post",
+        "/interview-posts/post",
         form,
         {
           headers: {

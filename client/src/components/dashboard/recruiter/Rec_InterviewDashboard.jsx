@@ -16,7 +16,7 @@ const RecruiterDashboard = () => {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const { data } = await api.get("/interviews/my-posts", {
+        const { data } = await api.get("/interview-posts/my-posts", {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
         setPosts(data.posts || []);
