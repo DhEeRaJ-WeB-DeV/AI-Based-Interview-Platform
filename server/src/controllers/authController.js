@@ -3,6 +3,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const { generateTokenAndSetCookie } = require("../utils/generateToken");
+
 
 const createMailTransporter = () => {
     return nodemailer.createTransport({
@@ -16,7 +18,6 @@ const createMailTransporter = () => {
 
 const sendPasswordResetOtp = async (user, otp) => {
     if (process.env.EMAIL_DEBUG_OTP === "true") {
-
         return;
     }
 
@@ -30,16 +31,16 @@ const sendPasswordResetOtp = async (user, otp) => {
     });
 };
 
-const createToken = (user) => {
-    return jwt.sign(
-        {
-            id: user._id,
-            role: user.role
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: "7d" }
-    );
-};
+// const createToken = (user) => {
+//     return jwt.sign(
+//         {
+//             id: user._id,
+//             role: user.role
+//         },
+//         process.env.JWT_SECRET,
+//         { expiresIn: "7d" }
+//     );
+// };
 
 const getProfilePhotoDataUri = (user) => {
     if (!user.profile_photo?.data || !user.profile_photo?.contentType) {
@@ -114,10 +115,10 @@ const registerUser = async (req, res) => {
                 }
                 : undefined
         });
-
+generateTokenAndSetCookie(user,res);
         res.status(201).json({
             message: "User registered successfully",
-            token: createToken(user),
+            // token: createToken(user),
             user: formatUserResponse(user)
         });
 
@@ -144,18 +145,21 @@ const loginUser = async (req, res) => {
             email === process.env.ADMIN_EMAIL &&
             password === process.env.ADMIN_PASSWORD
         ) {
-            const adminToken = jwt.sign(
-                {
-                    id: "admin",
-                    role: "admin"
-                },
-                process.env.JWT_SECRET,
-                { expiresIn: "7d" }
-            );
-
+            // const adminToken = jwt.sign(
+            //     {
+            //         id: "admin",
+            //         role: "admin"
+            //     },
+            //     process.env.JWT_SECRET,
+            //     { expiresIn: "7d" }
+            // );
+generateTokenAndSetCookie({
+        id: "admin",
+        role: "admin"
+    },res);
             return res.status(200).json({
                 message: "Admin logged in successfully",
-                token: adminToken,
+                // token: adminToken,
                 user: {
                     id: "admin",
                     name: "Administrator",
@@ -185,10 +189,10 @@ const loginUser = async (req, res) => {
                 message: "Invalid email or password"
             });
         }
-
+generateTokenAndSetCookie(user,res);
         res.status(200).json({
             message: "User logged in successfully",
-            token: createToken(user),
+            // token: createToken(user),
             user: formatUserResponse(user)
         });
 
@@ -334,9 +338,25 @@ const resetPassword = async (req, res) => {
     }
 };
 
+const logoutUser = (req, res) => {
+    try{
+        res.cookie("jwt", "", {
+        maxAge: 0
+    });
+
+    res.status(200).json({
+        message: "Logged out successfully"
+    });
+
+    }catch(error){
+       throw new Error("Failed to LogOut");
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
+    logoutUser,
     forgotPassword,
     verifyOtp,
     resetPassword
