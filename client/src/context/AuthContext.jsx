@@ -1,16 +1,65 @@
-import { createContext, useContext, useState } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import api from "../api/axiosClient";
 
-export const AuthContext = createContext();//holds the user’s authentication state and any associated functions to update it.
+export const AuthContext = createContext(null);
 
 export const useAuthContext = () => {
-	return useContext(AuthContext);
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error("useAuthContext must be used inside AuthContextProvider");
+  }
+
+  return context;
 };
 
 export const AuthContextProvider = ({ children }) => {
-	const [authUser, setAuthUser] = useState(JSON.parse(localStorage.getItem("token")) || null);//gets the data from localstorage and sets it in authuser.it will have the loggedin user data
-    
-	return <AuthContext.Provider value={{ authUser, setAuthUser }}>
-        {children}
-        </AuthContext.Provider>;
-};//children is a special prop in React that contains all elements or components nested inside this component in the JSX.
- // here the children is app which  contains all elements 
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // console.log('authuser:', authUser);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await api.get("/auth/me");
+        setAuthUser(response.data?.user || null);
+      } catch {
+        setAuthUser(null);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+  const login =(user) => {
+    setAuthUser(user);//setting the user in the state when they log in
+  };
+
+  const logout = () => {
+    setAuthUser(null);//clearing the user from the state when they log out
+  };
+
+  const value = useMemo(
+    () => ({
+      authUser,
+      authLoading,
+      login,
+      logout,
+      setAuthUser,
+    }),
+    [authUser, authLoading]
+  );//memoizing the value to prevent unnecessary re-renders bcos the value will only change when authUser changes 
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

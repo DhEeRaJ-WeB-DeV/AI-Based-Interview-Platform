@@ -1,79 +1,67 @@
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
-
+import { useFetchData } from "../../../hooks/useFetchData";
 
 const TimeLeft = ({ expiresAt }) => {
   const [timeLeft, setTimeLeft] = useState("");
-  
+
   useEffect(() => {
     const calc = () => {
       const diff = new Date(expiresAt) - new Date();
-      if (diff <= 0) { setTimeLeft("Expiring soon"); return; }
+
+      if (diff <= 0) {
+        setTimeLeft("Expiring soon");
+        return;
+      }
+
       const mins = Math.floor((diff / 1000 / 60) % 60);
-      const hrs  = Math.floor(diff / 1000 / 60 / 60);
+      const hrs = Math.floor(diff / 1000 / 60 / 60);
       setTimeLeft(hrs > 0 ? `${hrs}h ${mins}m left` : `${mins}m left`);
     };
+
     calc();
     const interval = setInterval(calc, 30000);
     return () => clearInterval(interval);
   }, [expiresAt]);
-  
-  return <span className="text-xs text-yellow-400 font-medium">{timeLeft}</span>;
+
+  return <span className="text-xs font-medium text-amber-300">{timeLeft}</span>;
 };
 
-const CandidateDashboard = ({onAttend}) => {
-  const [posts, setPosts]     = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState("");
-
-  useEffect(() => {
-    const fetchPosts = async () => {
-      try {
-        // const token = localStorage.getItem("token");
-        // console.log("the token:", token)
-        // // ── Debug checks ──────────────────────────────
-        // if (!token) {
-        //   setError("You are not logged in. Please login again.");
-        //   setLoading(false);
-        //   return;
-        // }
-        // ─────────────────────────────────────────────
-
-        const { data } = await api.get("/interview-posts/dashboard", {
-    
-        });
-        console.log("data",data)
-
-        setPosts(data.posts || []);
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-
-        // Show the exact error from backend
-        const msg = err.response?.data?.message || err.message || "Failed to load interviews.";
-        const status = err.response?.status;
-
-        if (status === 401) {
-          setError("Session expired. Please login again.");
-        } else if (status === 403) {
-          setError("Access denied. Only candidates can view this page.");
-        } else {
-          setError(`Error: ${msg}`);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPosts();
+const CandidateDashboard = ({ onAttend }) => {
+  const fetchPosts = useCallback(async () => {
+    const { data } = await api.get("/interview-posts/dashboard");
+    return data.posts || [];
   }, []);
 
-  const handleAttend = (postId) => {
-    window.location.href = `/interview/${postId}`;
-  };
+  const getDashboardError = useCallback((err) => {
+    const msg =
+      err.response?.data?.message || err.message || "Failed to load interviews.";
+    const status = err.response?.status;
+
+    if (status === 401) {
+      return "Session expired. Please login again.";
+    }
+
+    if (status === 403) {
+      return "Access denied. Only candidates can view this page.";
+    }
+
+    return `Error: ${msg}`;
+  }, []);
+
+  const {
+    data: posts,
+    loading,
+    error,
+    refetch,
+  } = useFetchData(fetchPosts, {
+    initialData: [],
+    getErrorMessage: getDashboardError,
+  });
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-48 text-slate-400">
+      <div className="flex h-48 items-center justify-center text-slate-400">
         Loading interviews...
       </div>
     );
@@ -81,11 +69,12 @@ const CandidateDashboard = ({onAttend}) => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 gap-3">
-        <div className="text-red-400 text-center">{error}</div>
+      <div className="flex h-48 flex-col items-center justify-center gap-3">
+        <div className="text-center text-red-300">{error}</div>
         <button
-          onClick={() => window.location.reload()}
-          className="text-sm bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg"
+          type="button"
+          onClick={refetch}
+          className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
         >
           Retry
         </button>
@@ -94,61 +83,75 @@ const CandidateDashboard = ({onAttend}) => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto text-white">
-      <h2 className="text-2xl font-bold mb-6">Available Interviews</h2>
+    <div className="mx-auto max-w-5xl text-white">
+      <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
+            Candidate dashboard
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold">Available interviews</h2>
+        </div>
+        <button
+          type="button"
+          onClick={refetch}
+          className="w-fit rounded-md border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+        >
+          Refresh
+        </button>
+      </div>
 
       {posts.length === 0 ? (
-        <div className="bg-slate-800 rounded-lg p-10 text-center text-slate-400">
+        <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-10 text-center text-slate-400">
           No interviews available right now.
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4">
           {posts.map((post) => (
-            <div
+            <article
               key={post._id}
-              className="bg-slate-800 rounded-lg p-5 flex items-center justify-between gap-4"
+              className="rounded-lg border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/10"
             >
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <h3 className="text-lg font-semibold">{post.role}</h3>
-                  <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">
-                    {post.roundName}
-                  </span>
-                </div>
-
-                {/* Skills */}
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {post.skills?.map((skill, i) => (
-                    <span
-                      key={i}
-                      className="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded-full"
-                    >
-                      {skill}
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold">{post.role}</h3>
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+                      {post.roundName}
                     </span>
-                  ))}
+                  </div>
+
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {post.skills?.map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-200"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mb-2 flex flex-wrap gap-3 text-sm text-slate-400">
+                    <span>
+                      {post.candidateType === "fresher"
+                        ? "Fresher"
+                        : `${post.minExperience}-${post.maxExperience} yrs`}
+                    </span>
+                    {post.difficulty && <span>{post.difficulty}</span>}
+                  </div>
+
+                  <TimeLeft expiresAt={post.expiresAt} />
                 </div>
 
-                {/* Meta */}
-                <div className="flex flex-wrap gap-3 text-sm text-slate-400 mb-2">
-                  <span>
-                    {post.candidateType === "fresher"
-                      ? "Fresher"
-                      : `${post.minExperience}–${post.maxExperience} yrs`}
-                  </span>
-                </div>
-
-                <TimeLeft expiresAt={post.expiresAt} />
+                <button
+                  type="button"
+                  onClick={() => onAttend(post)}
+                  className="h-11 shrink-0 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500"
+                >
+                  Start interview
+                </button>
               </div>
-
-              {/* Button */}
-              <button
-                onClick={() => onAttend(post)}
-                className="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-5 py-2 rounded-lg transition-colors"
-              >
-                Start Interview
-              </button>
-            </div>
+            </article>
           ))}
         </div>
       )}

@@ -2,7 +2,7 @@ import { FileText, Trash2, UploadCloud } from "lucide-react";
 import { useState,useEffect } from "react";
 import api from "../../../api/axiosClient";
 
-const MyProfile = ({ user }) => {
+const MyProfile = () => {
   const [resume, setResume] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saveError, setSaveError]     = useState("");
@@ -51,27 +51,18 @@ useEffect(() => {
 
     try {
 
-      const token =
-        localStorage.getItem("token");
-
       const response =
         await api.get(
-          "/candidate/profile",
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`
-            }
-          }
+          "/candidate/profile"
         );
 
-      const user = response.data.Profile;
+      const user = response.data.profile;
 
       setProfileData({
 
         name: user.name || "",
 
-        phone: user.phone || "",
+        phone: user.ph_no || "",
 
         email: user.email || "",
 
@@ -165,24 +156,16 @@ const handleResumeUpload = async (e) => {
     const formData = new FormData();
     formData.append("resume", file);
 
-    const token = localStorage.getItem("token");
-
     const response = await api.post(
       "/candidate/upload-resume",
-      formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: token ? `Bearer ${token}` : undefined,
-        },
-      }
+      formData
     );
 
     const parsedData = response.data?.profileData;
 
     setProfileData({
       name: parsedData.name || "",
-      phone: parsedData.phone || "",
+      phone: parsedData.ph_no || "",
       email: parsedData.email || "",
       skills: parsedData.skills || [],
       education:
@@ -235,42 +218,23 @@ const handleResumeUpload = async (e) => {
     setResume(null);
   };
 
-  const handlePersonalChange = (field, value) => {
-    setProfileData({
-      ...profileData,
-      [field]: value,
-    });
-  };
-
   const handleSaveProfile = async () => {
   setSaveError("");
   setSaveSuccess("");
-
   try {
-    const token = localStorage.getItem("token");
-
     await api.post(
       "/candidate/profile",
       {
         name:             profileData.name,
-        phone:            profileData.phone,
+        ph_no:            profileData.phone,
         email:            profileData.email,
         skills:           profileData.skills,
-        education:        profileData.education.map((edu) =>
-                            `${edu.degree} at ${edu.institution}, ${edu.location} (${edu.years}) - GPA: ${edu.gpa}`
-                          ),
-        experience:       profileData.experience.map((exp) =>
-                            `${exp.designation} at ${exp.company} (${exp.dates})`
-                          ),
-        projects:         profileData.projects.map((proj) =>
-                            `${proj.title} - ${proj.technologies.join(", ")}: ${proj.description}`
-                          ),
+       education: profileData.education,
+experience: profileData.experience,
+projects: profileData.projects,
         certifications:   profileData.certifications,
         profileCompleted: true,
       },
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
     );
 
     setSaveSuccess("Profile saved successfully!");

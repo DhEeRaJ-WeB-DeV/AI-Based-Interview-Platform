@@ -6,27 +6,21 @@ export default function PerformancePage() {
   const [loading, setLoading] = useState(true);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
 
-  const token = localStorage.getItem("token");
-
   useEffect(() => {
-    fetchResults();
-  }, []);
+    const loadResults = async () => {
+      try {
+        const res = await api.get("/recruiter/performance");
+        
+        setResults(res.data.results || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const fetchResults = async () => {
-    try {
-      const res = await api.get("/recruiter/performance", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      
-      setResults(res.data.results || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    loadResults();
+  }, []);
 
   const avgScore =
     results.length > 0
@@ -40,9 +34,7 @@ export default function PerformancePage() {
 
   const handleDeleteResult = async(resultID)=>{
       try{
-          const res = await api.delete(`/recruiter/delete-result/${resultID}`,{
-            headers:{Authorization: `Bearer ${localStorage.getItem('token')}`}
-          })
+          const res = await api.delete(`/recruiter/delete-result/${resultID}`)
           if (res.status == 200){
              setResults(prev =>
     prev.filter(result => result._id !== resultID)

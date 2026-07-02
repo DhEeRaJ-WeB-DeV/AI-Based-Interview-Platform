@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
 
 const statusColors = {
@@ -38,11 +38,9 @@ const RecruiterDashboard = () => {
 
     setDeleting(postId);
     try {
-      await api.delete(`/interview-posts/${postId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
+      await api.delete(`/interview-posts/${postId}`);
       setPosts((prev) => prev.filter((p) => p._id !== postId));
-    } catch (err) {
+    } catch {
       alert("Failed to delete. Please try again.");
     } finally {
       setDeleting(null);

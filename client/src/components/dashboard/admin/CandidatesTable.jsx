@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
 
 const CandidatesTable = () => {
@@ -15,11 +15,7 @@ const CandidatesTable = () => {
   useEffect(() => {
   const fetchCandidates = async () => {
     try {
-      const { data } = await api.get("/admin/candidates", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      const { data } = await api.get("/admin/candidates");
 
       console.log("Candidates API Response:", data);
 
@@ -50,11 +46,7 @@ const handleDeleteCandidate = async (id) => {
   if (!confirmDelete) return;
 
   try {
-    await api.delete(`/admin/candidates/${id}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
+    await api.delete(`/admin/candidates/${id}`);
 
     setAllCandidates((prev) =>
       prev.filter((candidate) => candidate._id !== id)

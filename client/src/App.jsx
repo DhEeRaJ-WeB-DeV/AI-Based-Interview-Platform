@@ -1,191 +1,184 @@
 import { useState } from "react";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
 import "./App.css";
 import AnimatedBackground from "./components/Auth/AnimatedBackground";
 import ForgotPassword from "./components/Auth/ForgotPassword";
 import Login from "./components/Auth/Login";
 import RegistrationPage from "./components/Auth/registration_page";
 import ResetPassword from "./components/Auth/ResetPassword";
-import AdminDashboard from "./layouts/AdminLayout";
-import CandidateLayout from "./layouts/CandidateLayout";
-import MyProfile from "./components/dashboard/candidate/MyProfile";
-import RecruiterLayout from "./layouts/RecruiterLayout";
-import CandidateDashboard from "./components/dashboard/candidate/InterviewDashboard";
-import InstructionPage from "./components/dashboard/candidate/Instruction";  // ← add
-import api from "./api/axiosClient";
+import { useAuthContext } from "./context/AuthContext";
+import Dashboard from "./pages/Dashboard";
+import InterviewRoute from "./pages/InterviewRoute";
 
-const STORAGE_KEY = "registeredUsers";
-const AUTH_USER_KEY = "authUser";
+const AuthShell = ({ children }) => (
+  <div className="relative min-h-screen overflow-hidden bg-[#080d16]">
+    <AnimatedBackground />
+    {children}
+  </div>
+);
 
-const getInitialUsers = () => {
-  const savedUsers = localStorage.getItem(STORAGE_KEY);
-  if (!savedUsers) return [];
-  try { return JSON.parse(savedUsers); } catch { return []; }
+const AuthLoadingScreen = () => (
+  <div className="min-h-screen bg-[#080d16]" />
+);
+
+const PublicOnly = ({ children }) => {
+  const { authUser, authLoading } = useAuthContext();
+
+  if (authLoading) {
+    return <AuthLoadingScreen />;
+  }
+
+  return authUser ? <Navigate to="/dashboard" replace /> : children;
 };
 
-function App() {
-  const [page, setPage] = useState("login");
+const PrivateOnly = ({ children }) => {
+  const { authUser, authLoading } = useAuthContext();
+
+  if (authLoading) {
+    return <AuthLoadingScreen />;
+  }
+
+  return authUser ? children : <Navigate to="/login" replace />;
+};
+
+function AppRoutes() {
+  const navigate = useNavigate();
+  const { authUser, authLoading } = useAuthContext();
   const [forgotEmail, setForgotEmail] = useState("");
-  const [registeredUsers, setRegisteredUsers] = useState(getInitialUsers);
-  const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem(AUTH_USER_KEY);
-    if (!savedUser) return null;
-    try { return JSON.parse(savedUser); } catch { return null; }
-  });
   const [resetEmail, setResetEmail] = useState("");
   const [resetOtp, setResetOtp] = useState("");
-  const [selectedPost, setSelectedPost] = useState(null);  // ← add
-
-  const saveUsers = (users) => {
-    setRegisteredUsers(users);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-  };
-
-  const handleRegisterUser = (user) => {
-    const filteredUsers = registeredUsers.filter(
-      (registeredUser) =>
-        registeredUser.email.toLowerCase() !== user.email.toLowerCase()
-    );
-    saveUsers([...filteredUsers, user]);
-    setCurrentUser(user);
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-    const role = user.role?.toLowerCase();
-    if (role === "candidate")  setPage("candidate-portal");
-    else if (role === "recruiter") setPage("recruiter-portal");
-    else if (role === "admin") setPage("admin-portal");
-  };
-
-  const handlePasswordReset = (email, password) => {
-    const updatedUsers = registeredUsers.map((user) =>
-      user.email.toLowerCase() === email.toLowerCase()
-        ? { ...user, password }
-        : user
-    );
-    saveUsers(updatedUsers);
-    setResetEmail("");
-    setResetOtp("");
-  };
 
   const handleOtpVerified = (email, otp) => {
     setResetEmail(email);
     setResetOtp(otp);
-    setPage("reset-password");
+    navigate("/reset-password");
   };
 
-  const handleLoginSuccess = (user) => {
-    setCurrentUser(user);
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-    const role = user?.role?.toLowerCase();
-    if (role === "candidate")      setPage("candidate-portal");
-    else if (role === "recruiter") setPage("recruiter-portal");
-    else if (role === "admin")     setPage("admin-portal");
-    else                           setPage("login");
-  };
-
-
-const handleLogout = async () => {
-  try {
-    await api.post("/auth/logout");
-  } catch (error) {
-    console.error("Logout failed:", error);
-  }
-
-  localStorage.removeItem(AUTH_USER_KEY);
-
-  setCurrentUser(null);
-  setSelectedPost(null);
-  setPage("login");
-};
- 
-
-  if (page === "recruiter-portal") {
-    return (
-      <RecruiterLayout
-        user={currentUser}
-        onLogout={handleLogout}
-      >
-        <div className="text-white text-2xl">Recruiter Dashboard</div>
-      </RecruiterLayout>
-    );
-  }
-
-  if (page === "admin-portal") {
   return (
-    <div className="min-h-screen bg-slate-950">
-      <AdminDashboard
-        user={currentUser}
-        onLogout={handleLogout}
+    <Routes>
+      <Route
+        path="/"
+        element={
+          authLoading ? (
+            <AuthLoadingScreen />
+          ) :
+          authUser ? (
+            <Navigate to="/dashboard" replace />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
       />
-    </div>
+
+      <Route
+        path="/login"
+        element={
+          <PublicOnly>
+            <AuthShell>
+              <Login
+                onForgotPasswordClick={(email) => {
+                  setForgotEmail(email);
+                  navigate("/forgot-password");
+                }}
+              />
+            </AuthShell>
+          </PublicOnly>
+        }
+      />
+
+      <Route
+        path="/signup"
+        element={
+          <PublicOnly>
+            <AuthShell>
+              <RegistrationPage />
+            </AuthShell>
+          </PublicOnly>
+        }
+      />
+
+      {/* <Route
+        path="/register"
+        element={<Navigate to="/signup" replace />}
+      /> */}
+
+      <Route
+        path="/forgot-password"
+        element={
+          <PublicOnly>
+            <AuthShell>
+              <ForgotPassword
+                initialEmail={forgotEmail}
+                onOtpVerified={handleOtpVerified}
+              />
+            </AuthShell>
+          </PublicOnly>
+        }
+      />
+
+      <Route
+        path="/reset-password"
+        element={
+          <PublicOnly>
+            <AuthShell>
+              <ResetPassword
+                email={resetEmail}
+                otp={resetOtp}
+                onBackToLogin={() => navigate("/login")}
+              />
+            </AuthShell>
+          </PublicOnly>
+        }
+      />
+
+      <Route
+        path="/dashboard"
+        element={
+          <PrivateOnly>
+            <Dashboard />
+          </PrivateOnly>
+        }
+      />
+
+      <Route
+        path="/interview/:interviewId"
+        element={
+          <PrivateOnly>
+            <InterviewRoute />
+          </PrivateOnly>
+        }
+      />
+
+      <Route
+        path="*"
+        element={
+          authLoading ? (
+            <AuthLoadingScreen />
+          ) : (
+            <Navigate to={authUser ? "/dashboard" : "/login"} replace />
+          )
+        }
+      />
+    </Routes>
   );
 }
 
-  if (page === "candidate-portal") {
-    return (
-      <CandidateLayout
-        user={currentUser}
-        onLogout={handleLogout}
-      >
-        {/* ── show instruction page or dashboard ── */}
-        {selectedPost ? (
-          <InstructionPage
-            post={selectedPost}
-            onBack={() => setSelectedPost(null)}
-            onStart={() => {
-              window.location.href = `/interview/${selectedPost._id}`;
-            }}
-          />
-        ) : (
-          <CandidateDashboard onAttend={(post) => setSelectedPost(post)} />
-        )}
-      </CandidateLayout>
-    );
-  }
-
-  let pageContent = (
-    <Login
-      onLoginSuccess={handleLoginSuccess}
-      onForgotPasswordClick={(email) => {
-        setForgotEmail(email);
-        setPage("forgot-password");
-      }}
-      onRegisterClick={() => setPage("register")}
-    />
-  );
-
-  if (page === "register") {
-    pageContent = (
-      <RegistrationPage
-        onBackToLogin={() => setPage("login")}
-        onRegisterUser={handleRegisterUser}
-      />
-    );
-  }
-
-  if (page === "forgot-password") {
-    pageContent = (
-      <ForgotPassword
-        onBackToLogin={() => setPage("login")}
-        onOtpVerified={handleOtpVerified}
-        userEmail={forgotEmail}
-      />
-    );
-  }
-
-  if (page === "reset-password") {
-    pageContent = (
-      <ResetPassword
-        email={resetEmail}
-        otp={resetOtp}
-        onBackToLogin={() => setPage("login")}
-        onPasswordReset={handlePasswordReset}
-      />
-    );
-  }
-
+function App() {
   return (
     <>
-      <AnimatedBackground />
-      {pageContent}
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          duration: 3200,
+          style: {
+            background: "#111827",
+            border: "1px solid rgba(148, 163, 184, 0.22)",
+            color: "#f8fafc",
+          },
+        }}
+      />
+      <AppRoutes />
     </>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
 
 const SearchCandidates = () => {
@@ -16,9 +16,7 @@ const SearchCandidates = () => {
   useEffect(() => {
     const fetchCandidates = async () => {
       try {
-        const { data } = await api.get("/users/candidates", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        });
+        const { data } = await api.get("/users/candidates");
         setAllCandidates(data.candidates || []);
         setResults(data.candidates || []);
       } catch (err) {
@@ -180,9 +178,24 @@ const SearchCandidates = () => {
               {c.experience?.length > 0 && (
                 <div className="mb-2">
                   <p className="text-sm font-medium mb-1">Experience:</p>
-                  <ul className="text-sm text-slate-400 list-disc list-inside">
+                  <ul className="text-sm text-slate-400 space-y-2">
                     {c.experience.map((exp, j) => (
-                      <li key={j}>{exp}</li>
+                      <li key={j} className="border-l-2 border-slate-700 pl-2">
+                        <p className="text-slate-300 font-medium">
+                          {exp.designation}
+                          {exp.company ? ` @ ${exp.company}` : ""}
+                        </p>
+                        {exp.dates && (
+                          <p className="text-xs text-slate-500">{exp.dates}</p>
+                        )}
+                        {exp.description?.length > 0 && (
+                          <ul className="list-disc list-inside mt-1">
+                            {exp.description.map((line, k) => (
+                              <li key={k}>{line}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
                     ))}
                   </ul>
                 </div>
@@ -192,9 +205,19 @@ const SearchCandidates = () => {
               {c.education?.length > 0 && (
                 <div>
                   <p className="text-sm font-medium mb-1">Education:</p>
-                  <ul className="text-sm text-slate-400 list-disc list-inside">
+                  <ul className="text-sm text-slate-400 space-y-2">
                     {c.education.map((edu, j) => (
-                      <li key={j}>{edu}</li>
+                      <li key={j} className="border-l-2 border-slate-700 pl-2">
+                        <p className="text-slate-300 font-medium">
+                          {edu.degree}
+                          {edu.institution ? ` — ${edu.institution}` : ""}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {[edu.years, edu.location, edu.gpa && `GPA: ${edu.gpa}`]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </li>
                     ))}
                   </ul>
                 </div>

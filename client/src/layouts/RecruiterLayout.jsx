@@ -16,7 +16,7 @@ import SearchCandidates from "../components/dashboard/recruiter/SearchCandidates
 import RecruiterDashboard from "../components/dashboard/recruiter/Rec_InterviewDashboard";
 import PerformancePage from "../components/dashboard/recruiter/PerformanceAnalysis";
 
-const RecruiterLayout = ({ children, onLogout, user }) => {
+const RecruiterLayout = ({ onLogout, user }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeItem, setActiveItem] = useState("Search Candidates");

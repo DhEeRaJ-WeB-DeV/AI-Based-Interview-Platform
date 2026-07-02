@@ -63,6 +63,42 @@ const formatUserResponse = (user) => {
     };
 };
 
+const getMe = async (req, res) => {
+    try {
+        const { id, role } = req.user;
+
+        if (role === "admin" && id === "admin") {
+            return res.status(200).json({
+                user: {
+                    id: "admin",
+                    name: "Administrator",
+                    email: process.env.ADMIN_EMAIL,
+                    role: "admin"
+                }
+            });
+        }
+
+        const user =
+            role === "recruiter"
+                ? await Admin.findById(id)
+                : await User.findById(id);
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        res.status(200).json({
+            user: formatUserResponse(user)
+        });
+    } catch (error) {
+        res.status(500).json({
+            message: error.message
+        });
+    }
+};
+
 
 // registration
 const registerUser = async (req, res) => {
@@ -349,5 +385,6 @@ module.exports = {
     logoutUser,
     forgotPassword,
     verifyOtp,
-    resetPassword
+    resetPassword,
+    getMe
 };

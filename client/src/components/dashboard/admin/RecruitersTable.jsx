@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
 
 const RecruitersTable = () => {
@@ -7,7 +7,6 @@ const RecruitersTable = () => {
   const [loading, setLoading] = useState(true);
   const [newRecruiterEmail, setNewRecruiterEmail] = useState("");
   const [newName, setNewName] = useState("");
-  const token = localStorage.getItem("token");
 
   const [filters, setFilters] = useState({
     name: "",
@@ -15,17 +14,9 @@ const RecruitersTable = () => {
     phone: "",
   });
 
-  useEffect(() => {
-    fetchRecruiters();
-  }, []);
-
   const fetchRecruiters = async () => {
     try {
-      const { data } = await api.get("/admin/recruiters", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
+      const { data } = await api.get("/admin/recruiters");
 
       setAllRecruiters(data.recruiters || []);
       setResults(data.recruiters || []);
@@ -36,6 +27,23 @@ const RecruitersTable = () => {
     }
   };
 
+  useEffect(() => {
+    const loadRecruiters = async () => {
+      try {
+        const { data } = await api.get("/admin/recruiters");
+
+        setAllRecruiters(data.recruiters || []);
+        setResults(data.recruiters || []);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRecruiters();
+  }, []);
+
 
   const handleAddRecruiter = async () => {
   if (!newRecruiterEmail.trim()) return;
@@ -44,12 +52,7 @@ const RecruitersTable = () => {
     const { data } = await api.post(
       "/admin/add-recruiter",
       { name:newName,
-        email: newRecruiterEmail },
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      }
+        email: newRecruiterEmail }
     );
 
     setNewRecruiterEmail("");
@@ -106,11 +109,7 @@ const RecruitersTable = () => {
   if (!confirmDelete) return;
 
   try {
-    await api.delete(`/admin/recruiters/${id}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    });
+    await api.delete(`/admin/recruiters/${id}`);
 
     setAllRecruiters((prev) =>
       prev.filter((recruiter) => recruiter._id !== id)

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import api from "../../../api/axiosClient";
 
 const PostInterview = () => {
@@ -46,15 +46,7 @@ const PostInterview = () => {
 
     setLoading(true);
     try {
-      const { data } = await api.post(
-        "/interview-posts/post",
-        form,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        }
-      );
+      await api.post("/interview-posts/post", form);
 
       setSuccessMsg(`Interview posted! It will be available for candidates for 2 hours.`);
 

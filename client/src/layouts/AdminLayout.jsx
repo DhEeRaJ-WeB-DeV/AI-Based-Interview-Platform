@@ -4,11 +4,9 @@ import {
   Bell,
   ChevronDown,
   LogOut,
-  User,
   BarChart3,
   Users,
   Building2,
-  KeyRound,
 } from "lucide-react";
 
 import { useState } from "react";

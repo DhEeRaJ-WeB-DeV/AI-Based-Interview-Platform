@@ -1,23 +1,22 @@
 // CandidateLayout.jsx
 
 import {
-  Menu, X, BarChart3, Bell, ChevronDown, Cpu,
-  HelpCircle, History, LogOut, Search, Settings, User,
+  Menu, X, Bell, ChevronDown, Cpu,
+  HelpCircle, LogOut, User,
 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import MyProfile from "../components/dashboard/candidate/MyProfile";
 import CandidateDashboard from "../components/dashboard/candidate/InterviewDashboard";
 import InstructionPage from "../components/dashboard/candidate/Instruction"; 
-import InterviewScreen from "../components/dashboard/candidate/InterviewScreen";
 import ViewProfile from "../components/dashboard/candidate/ViewProfile";
 
 const CandidateLayout = ({ onLogout, user }) => {
+  const navigate = useNavigate();
   const [isProfileOpen,  setIsProfileOpen]  = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeItem,     setActiveItem]     = useState("AI Resume Analysis");
   const [selectedPost,   setSelectedPost]   = useState(null); 
-  const [activeInterviewId, setActiveInterviewId] = useState(null);
-const [resultInterviewId, setResultInterviewId] = useState(null);
 
   const resumeNavItems    = [{ name: "AI Resume Analysis", icon: Cpu }];
   const interviewNavItems = [{ name: "Interviews", icon: HelpCircle }];
@@ -28,16 +27,12 @@ const [resultInterviewId, setResultInterviewId] = useState(null);
         return <MyProfile user={user} />;
 
       case "Interviews":
-  if (activeInterviewId) {
-    return <InterviewScreen
-  interviewId={activeInterviewId}/>;}
-
   if (selectedPost) {
     return (
       <InstructionPage
         post={selectedPost}
         onBack={() => setSelectedPost(null)}
-        onStart={(interviewId) => setActiveInterviewId(interviewId)} 
+        onStart={(interviewId) => navigate(`/interview/${interviewId}`)} 
       />
     );
   }
