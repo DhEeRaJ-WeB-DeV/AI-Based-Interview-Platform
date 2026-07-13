@@ -319,7 +319,7 @@ export default function InterviewScreen({ interviewId }) {
                 type="button"
                 onClick={handleNext}
                 disabled={loading || submitting}
-                className="h-10 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-10 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
                 {submitting
                   ? "Saving..."
@@ -414,7 +414,7 @@ export default function InterviewScreen({ interviewId }) {
                   window.location.reload()
                 }, 2000);
               }}
-              className="rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500"
+              className="rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500 cursor-pointer"
             >
               Go to dashboard
             </button>

@@ -114,7 +114,7 @@ export default function InstructionPage({post, onBack, onStart }) {
         <button
           type="button"
           onClick={handleStart}
-          className="h-11 w-full rounded-md bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-500"
+          className="h-11 w-full rounded-md bg-emerald-600 text-sm font-semibold text-white hover:bg-emerald-500 cursor-pointer"
         >
           Start interview
         </button>

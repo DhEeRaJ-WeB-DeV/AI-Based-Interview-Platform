@@ -4,7 +4,6 @@ import api from "../../../api/axiosClient";
 const ViewProfile = ({onEdit}) => {
 
   const [profile, setProfile] = useState(null);
-  const [resumeUrl, setresumeUrl] = useState("");
 
   useEffect(() => {
 
@@ -21,8 +20,6 @@ const ViewProfile = ({onEdit}) => {
         setProfile(
           response.data.profile
         );
-
-        setresumeUrl(response.data.url)
         
       } catch (error) {
         console.error(error);
@@ -198,15 +195,9 @@ const ViewProfile = ({onEdit}) => {
       </div>
       <button
   onClick={onEdit}
-  className="px-4 py-2 bg-indigo-600 rounded-lg text-white"
+  className="px-4 py-2 bg-indigo-600 rounded-lg text-white cursor-pointer"
 >
   Update Profile
-</button>
-<button
-  onClick={() => window.open(resumeUrl.resumeUrl, "_blank")}
-  className="px-4 py-2 bg-indigo-600 rounded-lg text-white"
->
-  View Resume
 </button>
 
     </div>

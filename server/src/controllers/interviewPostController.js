@@ -2,10 +2,21 @@ const interviewpost = require("../models/interviewpost");
 const InterviewPost = require("../models/interviewpost");
 const User = require("../models/User");
 const Admin = require("../models/Admin")
+const nodemailer = require("nodemailer");
 // ─────────────────────────────────────────────
 // POST /api/interviews/post
 // Recruiter submits the form
 // ─────────────────────────────────────────────
+const createMailTransporter = () => {
+    return nodemailer.createTransport({
+        service: process.env.EMAIL_SERVICE,
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+        }
+    });
+};
+
 const createInterviewPost = async (req, res) => {
   try {
     const {
@@ -37,28 +48,38 @@ const createInterviewPost = async (req, res) => {
     }
 
 
-    const post = await InterviewPost.create({
-      roundName,
-      role,
-      jobDescription: jd || "",
-      skills: skillsArray,
-      candidateType,
-      minExperience: candidateType === "experienced" ? Number(minExperience) : null,
-      maxExperience: candidateType === "experienced" ? Number(maxExperience) : null,
-      difficulty,
-      numberOfQuestions: Number(questions) || 10,
+     const transporter = createMailTransporter();
+
+     
+     const post = await InterviewPost.create({
+       roundName,
+       role,
+       jobDescription: jd || "",
+       skills: skillsArray,
+       candidateType,
+       minExperience: candidateType === "experienced" ? Number(minExperience) : null,
+       maxExperience: candidateType === "experienced" ? Number(maxExperience) : null,
+       difficulty,
+       numberOfQuestions: Number(questions) || 10,
       followUps,
       adaptive,
       candidateEmail: Email,
       postedBy: req.user.id,
     });
-
+    
+    await transporter.sendMail({
+     from: process.env.EMAIL_USER,
+     to: Email,
+     subject: "New Interview Post",
+     text: `You have a new interview post for the role of ${role}. Please check your dashboard for details.`,
+   });
 
     return res.status(201).json({
       message: "Interview posted successfully.",
       postId: post._id,
       expiresAt: post.expiresAt,
     });
+       
   } catch (err) {
     console.error("createInterviewPost error:", err);
     res.status(500).json({ message: "Server error." });

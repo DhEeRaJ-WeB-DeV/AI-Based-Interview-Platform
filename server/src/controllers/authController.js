@@ -95,11 +95,13 @@ const emailVerify = async (req, res) => {
             return res.status(400).json({ message: "Email is required" });
         }
         const emailregex = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
+
         if (!emailregex.test(email)) {
             return res.status(400).json({
                 message: "please enter the valid email address"
             })
         }
+        
         const existingUser = await Admin.findOne({ email: email.toLowerCase().trim() });
         const existingCandidate = await User.findOne({ email: email.toLowerCase().trim() });
         if (existingUser || existingCandidate) {

@@ -267,7 +267,7 @@ const handleResumeUpload = async (e) => {
                   Upload your latest resume for AI-powered analysis.
                 </p>
 
-                {loading ? (
+    {loading ? (
           <div className="border-2 border-dashed border-indigo-500 rounded-2xl p-10 flex flex-col items-center justify-center gap-4">
 
             <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
@@ -490,7 +490,7 @@ const handleResumeUpload = async (e) => {
         ],
       })
     }
-    className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+    className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer"
   >
     + Add Experience
   </button>
@@ -581,7 +581,7 @@ const handleResumeUpload = async (e) => {
         ],
       })
     }
-    className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+    className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer"
   >
     + Add Project
   </button>
@@ -707,7 +707,7 @@ const handleResumeUpload = async (e) => {
         ],
       })
     }
-    className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+    className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer"
   >
     + Add Education
   </button>
@@ -754,7 +754,7 @@ const handleResumeUpload = async (e) => {
 
   <button
     onClick={handleSaveProfile}
-    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-medium"
+    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-white font-medium cursor-pointer"
   >
     Save Profile
   </button>

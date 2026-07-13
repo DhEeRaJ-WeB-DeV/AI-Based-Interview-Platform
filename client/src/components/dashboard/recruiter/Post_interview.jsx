@@ -1,5 +1,6 @@
 import { useState } from "react";
 import api from "../../../api/axiosClient";
+import toast, { Toaster } from "react-hot-toast";
 
 const PostInterview = () => {
   const [form, setForm] = useState({
@@ -57,7 +58,7 @@ const PostInterview = () => {
       const res = await api.post("/interview-posts/post", form);
       
       if (res.status == 201){
-        setSuccessMsg(`Interview posted! It will be available for candidates for 2 hours.`);
+        toast.success(`Interview posted! It will be available for candidates for 2 hours.`)
       }
 
       // Reset form after successful post
@@ -86,13 +87,6 @@ const PostInterview = () => {
   return (
     <div className="max-w-4xl mx-auto text-white">
       <h2 className="text-2xl font-bold mb-6 !text-white">AI Interview Setup</h2>
-
-      {/* Success Message */}
-      {successMsg && (
-        <div className="mb-4 p-3 bg-emerald-900/50 border border-emerald-600 text-emerald-300 rounded">
-          {successMsg}
-        </div>
-      )}
 
       {/* Error Message */}
       {errorMsg && (
@@ -254,7 +248,7 @@ const PostInterview = () => {
         <button
           type="submit"
           disabled={loading}
-          className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded transition-colors"
+          className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded transition-colors cursor-pointer"
         >
           {loading ? "Posting..." : "Generate Interview"}
         </button>

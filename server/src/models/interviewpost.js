@@ -17,7 +17,7 @@ const interviewPostSchema = new mongoose.Schema(
     adaptive:         { type: Boolean, default: true },
 
     candidateEmail:   { type: String, default: null },
-    postedBy:         { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    postedBy:         { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
     status:           { type: String, enum: ["active", "completed", "deleted"], default: "active" },
 
     // TTL field — document auto-deletes 2 hours after creation

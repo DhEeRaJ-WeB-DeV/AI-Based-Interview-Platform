@@ -1,5 +1,3 @@
-    
-
 const User = require("../models/User");
 const Resume = require("../models/Resume");
 const fs = require("fs");
@@ -308,14 +306,12 @@ const saveProfile = async (req, res) => {
 const getProfile = async(req,res)=>{
 
     try{
-        const resume_url = await Resume.findOne({candidate:req.user.id}).select("resumeUrl");
         const user =
         await User.findById(req.user.id)
         .select("-password");
         res.status(200).json({
     success:true,
     profile:user,
-    url:resume_url
 });
 
     }catch(error){
