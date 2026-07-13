@@ -4,7 +4,6 @@ import api from "../../../api/axiosClient";
 const ViewProfile = ({onEdit}) => {
 
   const [profile, setProfile] = useState(null);
-  const [resumeUrl, setresumeUrl] = useState("");
 
   useEffect(() => {
 
@@ -16,13 +15,11 @@ const ViewProfile = ({onEdit}) => {
           await api.get(
             "/candidate/profile"
           );
-          console.log(response.data.profile);
 
         setProfile(
           response.data.profile
         );
 
-        setresumeUrl(response.data.url)
         
       } catch (error) {
         console.error(error);
@@ -195,6 +192,30 @@ const ViewProfile = ({onEdit}) => {
   </div>
 ))}
 
+
+<div className="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
+  <h2 className="text-xl font-semibold text-white mb-4">
+    Certifications
+  </h2>
+
+  {profile.certificates?.length > 0 ? (
+    <div className="flex flex-wrap gap-2">
+      {profile.certificates.map((certification, index) => (
+        <span
+          key={index}
+          className="px-3 py-1 bg-emerald-600 rounded-full text-white text-sm"
+        >
+          {certification}
+        </span>
+      ))}
+    </div>
+  ) : (
+    <p className="text-slate-400">
+      No certifications added.
+    </p>
+  )}
+</div>
+
       </div>
       <button
   onClick={onEdit}
@@ -202,12 +223,7 @@ const ViewProfile = ({onEdit}) => {
 >
   Update Profile
 </button>
-<button
-  onClick={() => window.open(resumeUrl.resumeUrl, "_blank")}
-  className="px-4 py-2 bg-indigo-600 rounded-lg text-white"
->
-  View Resume
-</button>
+
 
     </div>
   );

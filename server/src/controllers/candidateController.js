@@ -1,7 +1,6 @@
     
 
 const User = require("../models/User");
-const Resume = require("../models/Resume");
 const fs = require("fs");
 const path = require("path");
 const pdf = require("pdf-parse");
@@ -106,28 +105,6 @@ const uploadResume = async (req, res) => {
             });
         }
 
-        // Store resume
-
-const uploadResult =
-  await cloudinary.uploader.upload(
-    filePath,
-    {
-      folder: "resumes",
-      resource_type: "raw",
-    }
-  );
-
-  fs.unlink(filePath, (err) => {
-  if (err) console.error(err);
-});
-
-const resume = await Resume.create({ 
-    candidate: req.user.id, 
-    resumeUrl: uploadResult.secure_url,
-     extractedText
-     });
-
-    console.log("the public id in upload:", uploadResult.public_id)
 
     // generating the response from the llm by providing the extracted content
         const prompt = `
@@ -287,12 +264,12 @@ const saveProfile = async (req, res) => {
         education,
         projects,
         experience,
-        certifications,
+        certificates:certifications,
         profileCompleted: true,
       },
       { returnDocument: "after" }
     );
-
+    
     res.status(200).json({
       success: true,
       message: "Profile saved",
@@ -308,14 +285,12 @@ const saveProfile = async (req, res) => {
 const getProfile = async(req,res)=>{
 
     try{
-        const resume_url = await Resume.findOne({candidate:req.user.id}).select("resumeUrl");
         const user =
         await User.findById(req.user.id)
         .select("-password");
         res.status(200).json({
     success:true,
     profile:user,
-    url:resume_url
 });
 
     }catch(error){

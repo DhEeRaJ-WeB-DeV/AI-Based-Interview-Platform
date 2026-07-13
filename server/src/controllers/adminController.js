@@ -1,7 +1,6 @@
 const AIUsage = require("../models/AIUsage");
 const User = require("../models/User");
 const Admin = require("../models/Admin")
-const Resume = require("../models/Resume")
 const Result = require("../models/Result")
 const Interview = require("../models/Interview")
 const InterviewPost = require("../models/interviewpost")
@@ -107,35 +106,13 @@ const deleteRecruiter = async (req, res) => {
 
 
 
-function getPublicId(resumeUrl) {
-  const parts = resumeUrl.split("/upload/")[1];
-
-  // Remove version number
-  return parts.replace(/^v\d+\//, "");
-}
-
 
 const deleteCandidate = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const resumes = await Resume.find({ candidate: id }).select("resumeUrl")
     const info = await User.findById(id).select("name email")
     
-    await Promise.all(
-      resumes.map(async (resume) => {
-        try {
-          const publicId = getPublicId(resume.resumeUrl);
-          const response = await cloudinary.uploader.destroy(publicId, {
-            resource_type: "raw",
-          });
-
-        } catch (err) {
-          console.error(err);
-        }
-      })
-    );
-    await Resume.deleteMany({ candidate: id });
 
     const candidate = await User.findOneAndDelete({
       _id: id,

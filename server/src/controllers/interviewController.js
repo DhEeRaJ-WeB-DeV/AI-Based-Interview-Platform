@@ -19,7 +19,7 @@ const startInterview = async (req, res) => {
     // generate all questions at once
     const prompt = `You are conducting a ${difficulty} level job interview for the role of ${jobRole}.
     Job description: ${jobDescription}
-    Required skills: ${skills.join(', ')}
+    Required skills: ${skills.join(',')}
     
     Generate exactly ${numberOfQuestions} interview questions following these rules:
     1. Question 1 must always be: "Tell me about yourself"
@@ -81,7 +81,7 @@ const startInterview = async (req, res) => {
       difficulty,
       status:    'in_progress',
       startedAt: new Date(),
-      questions,             // all 6 stored upfront
+      questions,             
     });
 
     res.status(201).json({

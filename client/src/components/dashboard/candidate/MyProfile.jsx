@@ -7,6 +7,12 @@ const MyProfile = () => {
   const [loading, setLoading] = useState(false);
   const [saveError, setSaveError]     = useState("");
 const [saveSuccess, setSaveSuccess] = useState("");
+const [certificationsInput, setCertificationsInput] = useState("");
+
+const certifications = certificationsInput
+  .split(",")
+  .map(item => item.trim())
+  .filter(Boolean);
 
  const [profileData, setProfileData] = useState({
   name: "",
@@ -96,9 +102,14 @@ useEffect(() => {
               }],
 
         certifications:
-          user.certifications || []
-
+          user.certificates || []
+          
+          
       });
+
+      setCertificationsInput(
+  (user.certificates || []).join(", ")
+);
 
     } catch (error) {
 
@@ -125,7 +136,6 @@ const formatArrayForInput = (value) => {
 const parseCommaSeparated = (value) =>
   value
     .split(",")
-    .map((item) => item.trim())
     .filter(Boolean);
 
 const formatDescriptionForInput = (value) => {
@@ -202,6 +212,10 @@ const handleResumeUpload = async (e) => {
     
     });
 
+          setCertificationsInput(
+  (parsedData.certifications || []).join(",")
+);
+
   } catch (error) {
     console.error(error);
     alert("Failed to parse resume.");
@@ -240,7 +254,7 @@ const handleResumeUpload = async (e) => {
         education:profileData.education,
         experience:profileData.experience,
         projects:profileData.projects,
-        certifications:profileData.certifications,
+        certifications:certifications,
         profileCompleted: true,
       },
     );
@@ -721,18 +735,13 @@ const handleResumeUpload = async (e) => {
           Certifications
         </h2>
 
-        <input
-          type="text"
-          placeholder="Professional Certifications"
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white placeholder:text-slate-400 mb-4"
-          value={formatArrayForInput(profileData.certifications)}
-          onChange={(e) =>
-            setProfileData({
-              ...profileData,
-              certifications: parseCommaSeparated(e.target.value),
-            })
-          }
-        />
+       <input
+  type="text"
+  placeholder="Professional Certifications"
+  value={certificationsInput}
+  onChange={(e) => setCertificationsInput(e.target.value)}
+  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white"
+/>
       </div>
 
       {/* Save Button */}
