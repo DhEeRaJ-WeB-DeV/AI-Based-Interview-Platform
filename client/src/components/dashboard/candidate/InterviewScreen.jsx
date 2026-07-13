@@ -23,6 +23,8 @@ export default function InterviewScreen({ interviewId }) {
 
   const [question, setQuestion] = useState(null);
   const [questionIndex, setQuestionIndex] = useState(0);
+  const [inputMode, setInputMode] = useState("text");
+  const [typedAnswer,setTypedAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(TIME_PER_QUESTION);
   const [submitting, setSubmitting] = useState(false);
@@ -109,6 +111,12 @@ export default function InterviewScreen({ interviewId }) {
     } finally {
       setLoading(false);
     }
+    setTypedAnswer("");
+    setQuestion(res,data.question);
+    setTimeLeft(TIME_PER_QUESTION);
+
+    resetTranscipt();
+    setTypeanswer("");
   }, [interviewId, resetTranscript]);
 
   useEffect(() => {
@@ -157,12 +165,12 @@ export default function InterviewScreen({ interviewId }) {
         `/interview/${interviewId}/answer`,
         {
           questionId: question._id,
-          answerText: transcript,
+          answerText: inputMode === "text" ? typedAnswer : transcript,
           recordingUrl: recordingUrl || "",
         },
       );
     },
-    [interviewId, question, transcript]
+    [interviewId, question, transcript , typedAnswer, inputMode]
   );
 
   const handleNext = useCallback(async () => {
@@ -300,20 +308,30 @@ export default function InterviewScreen({ interviewId }) {
               </p>
             </div>
 
-            <div className="min-h-[120px] flex-1 text-sm leading-relaxed text-slate-300">
-              {transcript || (
-                <span className="text-slate-600">
-                  Start speaking. Your answer will appear here.
-                </span>
-              )}
-              {listening && (
-                <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-white align-middle" />
-              )}
-            </div>
+            {inputMode === "voice" ? (
+              
+              <div className="h-32 overflow-auto rounded-2xl border border-slate-50/10 bg-slate-50/5 p-4 text-sm text-slate-200">
+                {transcript || (
+                  <span className="text-slate-600">
+                    Start speaking. Your answer will appear here.
+                  </span>
+                )}
+                {listening && (
+                  <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-white align-middle" />
+                )}
+              </div>
+            ) : (
+              <textarea
+                value={typedAnswer}
+                onChange={(e) => setTypedAnswer(e.target.value)}
+                placeholder="Type your answer here..."
+                className="h-32 resize-none rounded-2xl border border-slate-50/10 bg-slate-50/5 p-4 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )}
 
             <div className="flex flex-col gap-3 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-slate-500">
-                {listening ? "Listening..." : "Mic off"}
+                {inputMode === "voice"? listening ? "Listening..." :"Mic off" : "Typing mode"}
               </div>
               <button
                 type="button"
@@ -328,6 +346,35 @@ export default function InterviewScreen({ interviewId }) {
                     : "Next question"}
               </button>
             </div>
+            <div className="mb-4 flex gap-3">
+                    <button
+                        onClick={() => {
+                            setInputMode("voice");
+                            startListening();
+                        }}
+                        className={`px-4 py-2 rounded ${
+                            inputMode === "voice"
+                                ? "bg-emerald-600"
+                                : "bg-slate-700"
+                        }`}
+                    >
+                        🎤 Voice
+                    </button>
+
+                    <button
+                        onClick={() => {
+                            setInputMode("text");
+                            stopListening();
+                        }}
+                        className={`px-4 py-2 rounded ${
+                            inputMode === "text"
+                                ? "bg-emerald-600"
+                                : "bg-slate-700"
+                        }`}
+                    >
+                        ⌨️ Type
+                    </button>
+                </div>
           </section>
         </div>
 
