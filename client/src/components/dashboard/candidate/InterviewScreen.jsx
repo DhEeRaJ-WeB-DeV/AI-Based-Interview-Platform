@@ -5,6 +5,7 @@ import api from "../../../api/axiosClient";
 import { useTabSwitchGuard } from "../../../hooks/useTabSwitchGuard";
 import { useMediaRecorder } from "./hooks/useMediaRecorder";
 import { useSpeechToText } from "./hooks/useSpeechToText";
+import { useSpeechSynthesis } from "./hooks/useTextToSpeech";
 
 const TOTAL_QUESTIONS = 6;
 const TIME_PER_QUESTION = 120;
@@ -31,192 +32,217 @@ export default function InterviewScreen({ interviewId }) {
   const timerRef = useRef(null);
   const videoRef = useRef(null);
 
-  const { startRecording, stopRecording, recording, streamRef } =
-    useMediaRecorder();
-  const {
-    transcript,
-    listening,
-    startListening,
-    stopListening,
-    resetTranscript,
-  } = useSpeechToText();
+ const { startRecording, stopRecording, recording, streamRef } =
+  useMediaRecorder();
 
-  const cleanupSession = useCallback(() => {
-    clearInterval(timerRef.current);
-    stopListening();
+const {
+  transcript,
+  listening,
+  startListening,
+  stopListening,
+  resetTranscript,
+} = useSpeechToText();
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-    }
-  }, [stopListening, streamRef]);
+const { speak, stopSpeaking } = useSpeechSynthesis();
 
-  const handleMalpractice = useCallback(
-    (reason) => {
-      cleanupSession();
-      toast.error(
-        reason === "tab-switch"
-          ? "Tab switch detected. Interview session closed."
-          : "Interview focus lost. Session closed."
-      );
-      navigate("/dashboard", { replace: true, state: { malpractice: true } });
-    },
-    [cleanupSession, navigate]
-  );
+const cleanupSession = useCallback(() => {
+  clearInterval(timerRef.current);
 
-  useTabSwitchGuard({
-    enabled: true,
-    maxViolations: 3,
+  stopListening();
+  stopSpeaking();
 
-    onWarning: ({ count, remaining }) => {
-      toast.error(
-        `Warning : Please do not switch tabs, the session is monitored.`
-      );
-    },
+  if (streamRef.current) {
+    streamRef.current.getTracks().forEach((track) => track.stop());
+  }
+}, [stopListening, stopSpeaking, streamRef]);
 
-    onViolation: async () => {
-      try {
-        await api.post("/interview/interview-violation", {
-          isviolated: true,
-        });
+const handleMalpractice = useCallback(
+  (reason) => {
+    cleanupSession();
 
-        toast.error(
-          "Interview terminated because you switched tabs multiple times."
-        );
+    toast.error(
+      reason === "tab-switch"
+        ? "Tab switch detected. Interview session closed."
+        : "Interview focus lost. Session closed."
+    );
 
-        // Navigate away
-        navigate("/");
-        setTimeout(() => {
-          window.location.reload()
-        }, 2000);
+    navigate("/dashboard", {
+      replace: true,
+      state: { malpractice: true },
+    });
+  },
+  [cleanupSession, navigate]
+);
 
-      } catch (err) {
-        console.error(err);
-      }
-    },
-  });
+const fetchQuestion = useCallback(async () => {
+  setLoading(true);
 
-  const fetchQuestion = useCallback(async () => {
-    setLoading(true);
+  try {
+    const res = await api.get(
+      `/interview/${interviewId}/question`
+    );
 
-    try {
-      const res = await api.get(`/interview/${interviewId}/question`);
-      setQuestion(res.data.question);
-      setQuestionIndex((prev) => prev + 1);
-      setTimeLeft(TIME_PER_QUESTION);
-      resetTranscript();
-    } catch(err) {
-      toast.error("Failed to load question. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [interviewId, resetTranscript]);
+    setQuestion(res.data.question);
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const stream = await startRecording();
+    stopSpeaking();
 
-        if (videoRef.current && stream) {
-          videoRef.current.srcObject = stream;
-        }
-
+    speak(
+      res.data.question.questionText,
+      () => {
         startListening();
-        await fetchQuestion();
-      } catch {
-        toast.error("Camera or microphone could not be started.");
       }
-    };
+    );
 
-    init();
+    setQuestionIndex((prev) => prev + 1);
+    setTimeLeft(TIME_PER_QUESTION);
+    resetTranscript();
 
-    return () => {
-      cleanupSession();
-    };
-    // Camera, mic, and first-question setup must run once for the session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  } catch (err) {
+    toast.error(
+      "Failed to load question. Please try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+}, [
+  interviewId,
+  resetTranscript,
+  speak,
+  stopSpeaking,
+  startListening,
+]);
 
-  const uploadRecording = useCallback(
-    async (blob) => {
-      try {
-        const formData = new FormData();
-        formData.append("video", blob, `q${questionIndex}.webm`);
-        const res = await api.post("/interview/upload-recording", formData);
-        return res.data.recordingUrl;
-      } catch {
-        toast.error("Recording upload failed. Saving answer without video.");
-        return null;
-      }
-    },
-    [questionIndex]
-  );
-
-  const saveAnswer = useCallback(
-    async (recordingUrl) => {
-      await api.post(
-        `/interview/${interviewId}/answer`,
-        {
-          questionId: question._id,
-          answerText: transcript,
-          recordingUrl: recordingUrl || "",
-        },
-      );
-    },
-    [interviewId, question, transcript]
-  );
-
-  const handleNext = useCallback(async () => {
-    if (submitting || !question) {
-      return;
-    }
-
-    clearInterval(timerRef.current);
-    stopListening();
-    setSubmitting(true);
-
+useEffect(() => {
+  const init = async () => {
     try {
-      const blob = await stopRecording();
-      const recordingUrl = blob ? await uploadRecording(blob) : null;
-      await saveAnswer(recordingUrl);
-
-      if (questionIndex >= TOTAL_QUESTIONS) {
-        await api.post(
-          `/interview/${interviewId}/submit`,
-          {}
-        );
-        cleanupSession();
-        setShowSuccessModal(true);
-        return;
-      }
-
       const stream = await startRecording();
 
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
       }
 
-      startListening();
       await fetchQuestion();
-    } catch(err) {
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [
-    cleanupSession,
-    fetchQuestion,
-    interviewId,
-    question,
-    questionIndex,
-    saveAnswer,
-    startListening,
-    startRecording,
-    stopListening,
-    stopRecording,
-    submitting,
-    uploadRecording,
-  ]);
 
+    } catch {
+      toast.error(
+        "Camera or microphone could not be started."
+      );
+    }
+  };
+
+  init();
+
+  return () => {
+    cleanupSession();
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+const uploadRecording = useCallback(
+  async (blob) => {
+    try {
+      const formData = new FormData();
+
+      formData.append(
+        "video",
+        blob,
+        `q${questionIndex}.webm`
+      );
+
+      const res = await api.post(
+        "/interview/upload-recording",
+        formData
+      );
+
+      return res.data.recordingUrl;
+
+    } catch {
+      toast.error(
+        "Recording upload failed. Saving answer without video."
+      );
+
+      return null;
+    }
+  },
+  [questionIndex]
+);
+
+const saveAnswer = useCallback(
+  async (recordingUrl) => {
+    await api.post(
+      `/interview/${interviewId}/answer`,
+      {
+        questionId: question._id,
+        answerText: transcript,
+        recordingUrl: recordingUrl || "",
+      }
+    );
+  },
+  [interviewId, question, transcript]
+);
+
+const handleNext = useCallback(async () => {
+  if (submitting || !question) {
+    return;
+  }
+
+  clearInterval(timerRef.current);
+
+  stopListening();
+  stopSpeaking();
+
+  setSubmitting(true);
+
+  try {
+    const blob = await stopRecording();
+
+    const recordingUrl = blob
+      ? await uploadRecording(blob)
+      : null;
+
+    await saveAnswer(recordingUrl);
+
+    if (questionIndex >= TOTAL_QUESTIONS) {
+      await api.post(
+        `/interview/${interviewId}/submit`,
+        {}
+      );
+
+      cleanupSession();
+      setShowSuccessModal(true);
+      return;
+    }
+
+    const stream = await startRecording();
+
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+
+    await fetchQuestion();
+
+  } catch (err) {
+    toast.error(
+      "Something went wrong. Please try again."
+    );
+  } finally {
+    setSubmitting(false);
+  }
+}, [
+  cleanupSession,
+  fetchQuestion,
+  interviewId,
+  question,
+  questionIndex,
+  saveAnswer,
+  startRecording,
+  stopListening,
+  stopSpeaking,
+  stopRecording,
+  submitting,
+  uploadRecording,
+]);
   useEffect(() => {
     if (!question) {
       return undefined;
