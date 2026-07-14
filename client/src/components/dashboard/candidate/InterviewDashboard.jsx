@@ -28,6 +28,22 @@ const TimeLeft = ({ expiresAt }) => {
 };
 
 const CandidateDashboard = ({ onAttend }) => {
+
+   const isChromeBrowser = () => {
+  if (navigator.userAgentData) {
+    return navigator.userAgentData.brands.some(
+      (brand) => brand.brand === "Google Chrome"
+    );
+  }
+
+  return (
+    /Chrome/.test(navigator.userAgent) &&
+    /Google Inc/.test(navigator.vendor) &&
+    !/Edg/.test(navigator.userAgent) &&
+    !/OPR/.test(navigator.userAgent)
+  );
+};
+
   const fetchPosts = useCallback(async () => {
     const { data } = await api.get("/interview-posts/dashboard");
     return data.posts || [];
@@ -145,8 +161,16 @@ const CandidateDashboard = ({ onAttend }) => {
 
                 <button
                   type="button"
-                  onClick={() => onAttend(post)}
-                  className="h-11 shrink-0 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500"
+                  onClick={() => {
+                    if(isChromeBrowser()){
+                      onAttend(post)
+                    }
+                      else{
+                        alert("Your browser does not support the required interview features. Please use Google Chrome.");
+                      }
+                    }
+                    }
+                    className="h-11 shrink-0 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500"
                 >
                   Start interview
                 </button>
