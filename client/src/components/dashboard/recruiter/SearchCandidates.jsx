@@ -327,25 +327,3 @@ const SearchCandidates = () => {
 
 export default SearchCandidates;
 
-<div className="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">
-            Certifications
-          </h2>
-
-          {profile.certificates?.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {profile.certificates.map((certification, index) => (
-                <span
-                  key={index}
-                  className="px-3 py-1 bg-emerald-600 rounded-full text-white text-sm"
-                >
-                  {certification}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="text-slate-400">
-              No certifications added.
-            </p>
-          )}
-        </div>

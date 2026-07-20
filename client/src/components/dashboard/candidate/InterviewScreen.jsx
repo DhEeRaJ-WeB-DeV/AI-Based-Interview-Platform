@@ -104,7 +104,7 @@ export default function InterviewScreen({ interviewId }) {
       setQuestionIndex((prev) => prev + 1);
       setTimeLeft(TIME_PER_QUESTION);
       resetTranscript();
-    } catch {
+    } catch(err) {
       toast.error("Failed to load question. Please try again.");
     } finally {
       setLoading(false);
@@ -197,7 +197,7 @@ export default function InterviewScreen({ interviewId }) {
 
       startListening();
       await fetchQuestion();
-    } catch {
+    } catch(err) {
       toast.error("Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);

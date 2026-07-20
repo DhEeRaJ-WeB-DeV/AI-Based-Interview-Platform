@@ -56,7 +56,7 @@ const userSchema = new mongoose.Schema({
     },
   ],
 
-  certificates:[Strings],
+  certificates:[String],
 
   profileCompleted: {
     type: Boolean,

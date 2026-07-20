@@ -29,7 +29,7 @@ const getPerformance = async (req, res) => {
     if (req.user.id === "admin"){
       
       results = await Result.find()
-  .select("recruiter candidateId interviewId overallScore summary")
+  .select("recruiter candidateId interviewId overallScore summary questions")
   .populate("candidateId", "name email")
   .populate({
     path: "interviewId",

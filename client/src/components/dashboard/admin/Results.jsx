@@ -10,7 +10,7 @@ export default function Results() {
     const loadResults = async () => {
       try {
         const res = await api.get("/recruiter/performance");
-        
+
         setResults(res.data.results || []);
       } catch (err) {
         console.error(err);
@@ -25,24 +25,24 @@ export default function Results() {
   const avgScore =
     results.length > 0
       ? Math.round(
-          results.reduce(
-            (sum, r) => sum + r.overallScore,
-            0
-          ) / results.length
-        )
+        results.reduce(
+          (sum, r) => sum + r.overallScore,
+          0
+        ) / results.length
+      )
       : 0;
 
-  const handleDeleteResult = async(resultID)=>{
-      try{
-          const res = await api.delete(`/admin/delete-result/${resultID}`)
-          if (res.status == 200){
-             setResults(prev =>
-    prev.filter(result => result._id !== resultID)
-  );
-          }
-        }catch(err){
-        console.log("error:",err)
+  const handleDeleteResult = async (resultID) => {
+    try {
+      const res = await api.delete(`/admin/delete-result/${resultID}`)
+      if (res.status == 200) {
+        setResults(prev =>
+          prev.filter(result => result._id !== resultID)
+        );
       }
+    } catch (err) {
+      console.log("error:", err)
+    }
   }
 
   const hireCount = results.filter(
@@ -137,74 +137,77 @@ export default function Results() {
 
             </thead>
 
-<tbody>
-  {results.map((item) => (
-    <tr
-      key={item._id}
-      className="border-t border-slate-700 hover:bg-slate-700/20"
-    >
-      {/* Candidate */}
-      <td className="p-4">
-        <div>
-          <p className="font-semibold text-white">
-            {item.candidateId?.name}
-          </p>
+            <tbody>
+              {results.map((item) => (
+                <tr
+                  key={item._id}
+                  className="border-t border-slate-700 hover:bg-slate-700/20"
+                >
+                  {/* Candidate */}
+                  <td className="p-4">
+                    <div>
+                      <p className="font-semibold text-white">
+                        {item.candidateId?.name}
+                      </p>
 
-          <p className="text-sm text-slate-400">
-            {item.candidateId?.email}
-          </p>
-        </div>
-      </td>
+                      <p className="text-sm text-slate-400">
+                        {item.candidateId?.email}
+                      </p>
+                    </div>
+                  </td>
 
-      {/* Recruiter */}
-      <td className="p-4">
-        {item.recruiter}
-      </td>
+                  {/* Recruiter */}
+                  <td className="p-4">
+                    {item.recruiter}
+                  </td>
 
-      {/* Role */}
-      <td className="p-4">
-        {item.interviewId?.jobRole}
-      </td>
+                  {/* Role */}
+                  <td className="p-4">
+                    {item.interviewId?.jobRole}
+                  </td>
 
-      {/* Score */}
-      <td className="p-4 font-semibold">
-        {item.overallScore}
-      </td>
+                  {/* Score */}
+                  <td className="p-4 font-semibold">
+                    {item.overallScore}
+                  </td>
 
-      {/* Recommendation */}
-      <td className="p-4">
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-medium ${
-            item.summary?.recommendation?.toLowerCase() === "hire"
-              ? "bg-emerald-900 text-emerald-300"
-              : "bg-red-900 text-red-300"
-          }`}
-        >
-          {item.summary?.recommendation}
-        </span>
-      </td>
+                  {/* Recommendation */}
+                  <td className="p-4">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${item.summary?.recommendation?.toLowerCase() === "hire"
+                          ? "bg-emerald-900 text-emerald-300"
+                          : "bg-red-900 text-red-300"
+                        }`}
+                    >
+                      {item.summary?.recommendation}
+                    </span>
+                  </td>
 
-      {/* Action */}
-      <td className="p-4">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setSelectedCandidate(item)}
-            className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg"
-          >
-            View
-          </button>
+                  {/* Action */}
+                  <td className="p-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          console.log(item);
+                          setSelectedCandidate(item);
+                        }}
 
-          <button
-            onClick={() => handleDeleteResult(item._id)}
-            className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
-          >
-            Delete
-          </button>
-        </div>
-      </td>
-    </tr>
-  ))}
-</tbody>
+                        className="bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg"
+                      >
+                        View
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteResult(item._id)}
+                        className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
 
           </table>
 
@@ -275,84 +278,84 @@ export default function Results() {
                 </ul>
               </div>
               <div>
-  <h3 className="font-semibold text-xl mb-4">
-    Question-wise Analysis
-  </h3>
+                <h3 className="font-semibold text-xl mb-4">
+                  Question-wise Analysis
+                </h3>
 
-  <div className="space-y-5">
-    {selectedCandidate.questions?.map((q, index) => (
-      <div
-        key={q._id}
-        className="border border-slate-700 rounded-lg p-4"
-      >
-        <h4 className="font-semibold text-white">
-          Q{index + 1}. {q.questionText}
-        </h4>
+                <div className="space-y-5">
+                  {selectedCandidate.questions?.map((q, index) => (
+                    <div
+                      key={q._id}
+                      className="border border-slate-700 rounded-lg p-4"
+                    >
+                      <h4 className="font-semibold text-white">
+                        Q{index + 1}. {q.questionText}
+                      </h4>
 
-        <p className="text-slate-400 mt-2">
-          {q.answerText || "No answer provided"}
-        </p>
+                      <p className="text-slate-400 mt-2">
+                        {q.answerText || "No answer provided"}
+                      </p>
 
-        {q.aiEvaluation && (
-          <div className="mt-3 grid md:grid-cols-3 gap-3">
+                      {q.aiEvaluation && (
+                        <div className="mt-3 grid md:grid-cols-3 gap-3">
 
-            <div className="bg-slate-800 p-3 rounded">
-              <p className="text-xs text-slate-400">
-                Score
-              </p>
-              <p className="text-lg font-bold">
-                {q.aiEvaluation.score}
-              </p>
-            </div>
+                          <div className="bg-slate-800 p-3 rounded">
+                            <p className="text-xs text-slate-400">
+                              Score
+                            </p>
+                            <p className="text-lg font-bold">
+                              {q.aiEvaluation.score}
+                            </p>
+                          </div>
 
-            <div className="bg-slate-800 p-3 rounded">
-              <p className="text-xs text-slate-400">
-                Relevance
-              </p>
-              <p className="text-lg font-bold">
-                {q.aiEvaluation.relevance}
-              </p>
-            </div>
+                          <div className="bg-slate-800 p-3 rounded">
+                            <p className="text-xs text-slate-400">
+                              Relevance
+                            </p>
+                            <p className="text-lg font-bold">
+                              {q.aiEvaluation.relevance}
+                            </p>
+                          </div>
 
-            <div className="bg-slate-800 p-3 rounded">
-              <p className="text-xs text-slate-400">
-                Clarity
-              </p>
-              <p className="text-lg font-bold">
-                {q.aiEvaluation.clarity}
-              </p>
-            </div>
+                          <div className="bg-slate-800 p-3 rounded">
+                            <p className="text-xs text-slate-400">
+                              Clarity
+                            </p>
+                            <p className="text-lg font-bold">
+                              {q.aiEvaluation.clarity}
+                            </p>
+                          </div>
 
-          </div>
-        )}
+                        </div>
+                      )}
 
-        {q.aiEvaluation?.feedback && (
-          <div className="mt-3 text-sky-300">
-            Feedback: {q.aiEvaluation.feedback}
-          </div>
-        )}
-          
-        {q.recordingUrl && (
-          <div className="mt-4">
-            <p className="mb-2 text-sm text-slate-400">
-              Candidate Recording
-            </p>
+                      {q.aiEvaluation?.feedback && (
+                        <div className="mt-3 text-sky-300">
+                          Feedback: {q.aiEvaluation.feedback}
+                        </div>
+                      )}
 
-            <video
-              controls
-              className="w-full rounded-lg"
-            >
-              <source
-                src={q.recordingUrl}
-                type="video/webm"
-              />
-            </video>
-          </div>
-        )}
-      </div>
-    ))}
-  </div>
-</div>
+                      {q.recordingUrl && (
+                        <div className="mt-4">
+                          <p className="mb-2 text-sm text-slate-400">
+                            Candidate Recording
+                          </p>
+
+                          <video
+                            controls
+                            className="w-full rounded-lg"
+                          >
+                            <source
+                              src={q.recordingUrl}
+                              type="video/webm"
+                            />
+                          </video>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
 
             </div>
 

@@ -32,19 +32,44 @@ const createInterviewPost = async (req, res) => {
       followUps,
       adaptive,
       Email,
+      interviewDate,
+      startTime,
+      endTime,
+      duration
     } = req.body;
 
     if (!roundName || !role) {
       return res.status(400).json({ message: "Round name and role are required." });
     }
+    if (!interviewDate || !startTime || !endTime || !duration) {
+      return res.status(400).json({ message: "interviewDate, startTime, endTime and duration are required." });
+    }
+    const interview = new Date(interviewDate);
+    const start = new Date(`${interviewDate}T${startTime}`);
+    const end = new Date(`${interviewDate}T${endTime}`);
+    const dur = Number(duration);
+
+    if (isNaN(start) || isNaN(end) || start >= end) {
+      return res.status(400).json({ message: "Invalid time window." });
+    }
+    if (!dur || dur <= 0 || (end - start) < dur * 60000) {
+      return res.status(400).json({ message: "Duration doesn't fit inside the window." });
+    }
 
     const skillsArray = skills
       ? skills.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
+
     const user = await User.find({email:Email})
 
     if (user.length === 0 ){
       return res.status(403).json({message:"invalid user or user does not exist."});
+    }
+
+    const exists = await InterviewPost.findOne({candidateEmail:Email});
+
+    if(exists){
+       return res.status(400).json({message:"the candidate hasnt finised the pev interview"});
     }
 
 
@@ -65,6 +90,10 @@ const createInterviewPost = async (req, res) => {
       adaptive,
       candidateEmail: Email,
       postedBy: req.user.id,
+      interviewDate: interview,
+      startTime: start,
+      endTime: end,
+      duration: dur,
     });
     
     await transporter.sendMail({
@@ -98,10 +127,10 @@ const Can_getDashboardPosts = async (req, res) => {
       return res.status(404).json({ message: "User not found." });
     }
 
-    let query = { status: "active", expiresAt: { $gt: new Date() } };
-    let fields = "roundName role skills candidateType minExperience maxExperience expiresAt status";
+    let query = { status: { $in: ["active", "scheduled"] }, candidateEmail: user.email };
+    let fields = "roundName role skills jobDescription candidateType minExperience maxExperience expiresAt status interviewDate startTime endTime duration";
 
-      query.candidateEmail = user.email;
+      // query.candidateEmail = user.email;
 
     const posts = await InterviewPost.find(query)
       .select(fields)
@@ -123,8 +152,9 @@ const Rec_getDashboardPosts = async (req,res) =>{
     if (!user) {
       return res.status(404).json({ message: "User not found." });
     }
-  let query = { postedBy: req.user.id, status: "active", expiresAt: { $gt: new Date() } };
-    let fields = "roundName role skills candidateType minExperience maxExperience expiresAt status difficulty numberOfQuestions candidateEmail"
+
+  let query = { postedBy: req.user.id,status: { $in: ["active", "scheduled"] }};
+  let fields = "roundName role skills candidateType minExperience maxExperience expiresAt status difficulty numberOfQuestions candidateEmail"
 
 const posts = await InterviewPost.find(query)
       .select(fields)
@@ -137,54 +167,58 @@ catch(err){
     res.status(500).json({ message: "Server error." });
 }
 }
-// ─────────────────────────────────────────────
-// GET /api/interviews/:postId
-// Candidate fetches full post before starting interview
-// ─────────────────────────────────────────────
-const getInterviewPostById = async (req, res) => {
-  try {
-    const post = await InterviewPost.findById(req.params.postId);
 
+// GET /api/interviews/:postId
+//this function is to update the start and endtime in our interviewpost schema which we r getting from ScheduleTime.jsx
+const selectInterviewSlot = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { slotStart } = req.body;
+
+    if (!slotStart) {
+      return res.status(400).json({ message: "slotStart is required." });
+    }
+
+    const post = await InterviewPost.findById(postId);
     if (!post) {
       return res.status(404).json({ message: "Interview not found or has expired." });
     }
 
-    if (post.status !== "active" || post.expiresAt < new Date()) {
+    if (post.status !== "active") {
       return res.status(410).json({ message: "This interview is no longer available." });
     }
 
-    if (post.candidateEmail !== req.user.email) {
-      return res.status(403).json({ message: "This interview is not meant for you." });
+    const start = new Date(slotStart);
+
+    if (isNaN(start)) {
+      return res.status(400).json({ message: "Invalid slotStart." });
+    }
+    const end = new Date(start.getTime() + post.duration * 60000);
+
+    if (start < post.startTime || end > post.endTime) {
+      return res.status(400).json({ message: "Selected slot is outside the interview window." });
     }
 
-    res.status(200).json({ post });
-  } catch (err) {
-    console.error("getInterviewPostById error:", err);
-    res.status(500).json({ message: "Server error." });
-  }
-};
-
-
-// Call this when candidate completes the interview
-const completeInterviewPost = async (req, res) => {
-  try {
-    const post = await InterviewPost.findById(req.params.postId);
-
-    if (!post) {
-      return res.status(404).json({ message: "Post not found." });
+    const offsetMs = start.getTime() - post.startTime.getTime();
+    if (offsetMs % (post.duration * 60000) !== 0) {
+      return res.status(400).json({ message: "Slot does not align to the allowed time grid." });
     }
 
-    post.status = "completed";
-    post.expiresAt = undefined; 
+    post.startTime = start;
+    post.endTime = end;
+    post.status = "scheduled";
     await post.save();
 
-    res.status(200).json({ message: "Interview marked as completed." });
+    return res.status(200).json({
+      message: "Interview slot confirmed.",
+      startTime: post.startTime,
+      endTime: post.endTime,
+    });
   } catch (err) {
-    console.error("completeInterviewPost error:", err);
-    res.status(500).json({ message: "Server error." });
+    console.error("selectInterviewSlot error:", err);
+    res.status(500).json({ message: "Server error.", error: err.message });
   }
 };
-
 
 // delete post by the recruiter
 const deleteInterviewPost = async (req, res) => {
@@ -201,7 +235,6 @@ module.exports = {
   createInterviewPost,
   Can_getDashboardPosts,
   Rec_getDashboardPosts,
-  getInterviewPostById,
-  completeInterviewPost,
-  deleteInterviewPost
+  deleteInterviewPost,
+  selectInterviewSlot
 };

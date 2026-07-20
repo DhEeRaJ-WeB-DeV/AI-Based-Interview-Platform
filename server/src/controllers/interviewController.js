@@ -10,7 +10,7 @@ const Admin = require("../models/Admin")
 const {createMailTransporter} = require("../controllers/authController");
 const User = require('../models/User');
 let postidforviolation = ""
-// ── Start Interview + Generate All Questions ───────────────────
+
 const startInterview = async (req, res) => {
   try {
 
@@ -206,7 +206,7 @@ const startInterview = async (req, res) => {
       difficulty,
       status:    'in_progress',
       startedAt: new Date(),
-      questions,             // all 6 stored upfront
+      questions,             
     });
 
     res.status(201).json({
@@ -219,13 +219,16 @@ const startInterview = async (req, res) => {
   }
 };
 
-// ── Get Next Question (just fetch from DB, no AI call) ─────────
 const getNextQuestion = async (req, res) => {
   try {
-    const interview = await Interview.findById(req.params.id);
+    let interview = null;
+    if(!interview){
+
+      interview = await Interview.findById(req.params.id);
+    }
     if (!interview) return res.status(404).json({ message: 'Interview not found' });
 
-    // find the next unanswered question
+
     const nextQuestion = interview.questions.find((q) => !q.answeredAt);
 
     if (!nextQuestion) {
@@ -290,7 +293,7 @@ const uploadRecording = async (req, res) => {
   }
 };
 
-// ── Save Answer ────────────────────────────────────────────────
+
 const saveAnswer = async (req, res) => {
   try {
     const { questionId, answerText, recordingUrl } = req.body;
@@ -349,7 +352,7 @@ const interview_violation = async (req, res) => {
 }
 
 
-// ── Submit & Evaluate ──────────────────────────────────────────
+
 const submitInterview = async (req, res) => {
   try {
     
@@ -372,7 +375,7 @@ if (existingResult) {
     interview.submittedAt = new Date();
     await interview.save();
 
-    // evaluate each answered question
+   
     let totalScore = 0;
     let answeredCount = 0;
 
@@ -430,7 +433,7 @@ Evaluate and return ONLY a valid JSON object, no markdown, no explanation:
       ? Math.round(totalScore / answeredCount)
       : 0;
 
-    // generate summary
+   
     const summaryPrompt = `Based on this interview for ${interview.jobRole}:
 ${JSON.stringify(interview.questions.map(q => ({
   question:   q.questionText,
@@ -492,7 +495,6 @@ Return ONLY a valid JSON object, no markdown, no explanation:
   }
 };
 
-// ── Get Result ─────────────────────────────────────────────────
 const getResult = async (req, res) => {
   try {
     const result = await Result.findOne({ interviewId: req.params.interviewId })
