@@ -66,6 +66,26 @@ const fetchPosts = useCallback(async () => {
   return allPosts.filter((post) => post.status === "scheduled");
 }, []);
 
+   const isChromeBrowser = () => {
+  if (navigator.userAgentData) {
+    return navigator.userAgentData.brands.some(
+      (brand) => brand.brand === "Google Chrome"
+    );
+  }
+
+  return (
+    /Chrome/.test(navigator.userAgent) &&
+    /Google Inc/.test(navigator.vendor) &&
+    !/Edg/.test(navigator.userAgent) &&
+    !/OPR/.test(navigator.userAgent)
+  );
+};
+
+  const fetchPosts = useCallback(async () => {
+    const { data } = await api.get("/interview-posts/dashboard");
+    return data.posts || [];
+  }, []);
+
   const getDashboardError = useCallback((err) => {
     const msg =
       err.response?.data?.message || err.message || "Failed to load interviews.";
@@ -167,6 +187,55 @@ const fetchPosts = useCallback(async () => {
                 <span
                   key={skill}
                   className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-200"
+          {posts.map((post) => (
+            <article
+              key={post._id}
+              className="rounded-lg border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/10"
+            >
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold">{post.role}</h3>
+                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+                      {post.roundName}
+                    </span>
+                  </div>
+
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {post.skills?.map((skill) => (
+                      <span
+                        key={skill}
+                        className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-200"
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mb-2 flex flex-wrap gap-3 text-sm text-slate-400">
+                    <span>
+                      {post.candidateType === "fresher"
+                        ? "Fresher"
+                        : `${post.minExperience}-${post.maxExperience} yrs`}
+                    </span>
+                    {post.difficulty && <span>{post.difficulty}</span>}
+                  </div>
+
+                  <TimeLeft expiresAt={post.expiresAt} />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if(isChromeBrowser()){
+                      onAttend(post)
+                    }
+                      else{
+                        alert("Your browser does not support the required interview features. Please use Google Chrome.");
+                      }
+                    }
+                    }
+                    className="h-11 shrink-0 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500"
                 >
                   {skill}
                 </span>
