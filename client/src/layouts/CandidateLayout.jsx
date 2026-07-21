@@ -2,7 +2,7 @@
 
 import {
   Menu, X, Bell, ChevronDown, Cpu,
-  HelpCircle, LogOut, User,
+  HelpCircle, LogOut, User,CalendarDays
 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +10,8 @@ import MyProfile from "../components/dashboard/candidate/MyProfile";
 import CandidateDashboard from "../components/dashboard/candidate/InterviewDashboard";
 import InstructionPage from "../components/dashboard/candidate/Instruction"; 
 import ViewProfile from "../components/dashboard/candidate/ViewProfile";
+import ScheduleTime from "../components/dashboard/candidate/ScheduleTime";
+import ConfirmationCard from "../components/dashboard/candidate/ConfirmationCard";
 
 const CandidateLayout = ({ onLogout, user }) => {
   const navigate = useNavigate();
@@ -17,9 +19,15 @@ const CandidateLayout = ({ onLogout, user }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeItem,     setActiveItem]     = useState("AI Resume Analysis");
   const [selectedPost,   setSelectedPost]   = useState(null); 
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
 
   const resumeNavItems    = [{ name: "AI Resume Analysis", icon: Cpu }];
-  const interviewNavItems = [{ name: "Interviews", icon: HelpCircle }];
+  const interviewNavItems = [{ name: "Interviews", icon: HelpCircle },{ name: "Schedule Time", icon: CalendarDays }];
+
+  //for canceling the display card after booking for a cancle button for : <ConfirmationCard booking={confirmedBooking} />
+ const handleCancel = () => {
+  setConfirmedBooking(null);
+};
 
   const renderPage = () => {
     switch (activeItem) {
@@ -27,19 +35,29 @@ const CandidateLayout = ({ onLogout, user }) => {
         return <MyProfile user={user} />;
 
       case "Interviews":
-  if (selectedPost) {
-    return (
-      <InstructionPage
-        post={selectedPost}
-        onBack={() => setSelectedPost(null)}
-        onStart={(interviewId) => navigate(`/interview/${interviewId}`)} 
-      />
-      
-    );
-  }
-  return <CandidateDashboard onAttend={(post) => setSelectedPost(post)} />;
+           if (selectedPost) {
+       return (
+          <InstructionPage
+            post={selectedPost}
+            onBack={() => setSelectedPost(null)}
+            onStart={(interviewId) => navigate(`/interview/${interviewId}`)} 
+          />
+          );
+        }
+        return <CandidateDashboard onAttend={(post) => setSelectedPost(post)} />;
 
-      case "My Profile":
+    case "Schedule Time":
+      console.log()
+       return confirmedBooking ? (
+            <ConfirmationCard booking={confirmedBooking} onCancel={handleCancel} />
+          ) : (
+            <ScheduleTime
+              confirmedBooking={confirmedBooking}
+              setConfirmedBooking={setConfirmedBooking}
+            />
+          );
+
+    case "My Profile":
   return (
     <ViewProfile
       user={user}

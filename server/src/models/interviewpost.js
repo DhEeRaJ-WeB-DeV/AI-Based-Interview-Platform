@@ -17,19 +17,34 @@ const interviewPostSchema = new mongoose.Schema(
     adaptive:         { type: Boolean, default: true },
 
     candidateEmail:   { type: String, default: null },
-    postedBy:         { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    status:           { type: String, enum: ["active", "completed", "deleted"], default: "active" },
+    postedBy:         { type: mongoose.Schema.Types.ObjectId, ref: "Admin", required: true },
+    status:           { type: String, enum: ["active","scheduled","completed", "deleted"], default: "active" },
 
-    // TTL field — document auto-deletes 2 hours after creation
-    expiresAt: {
-      type: Date,
-      default: () => new Date(Date.now() + 2 * 60 * 60 * 1000),
+
+    interviewDate:{
+      type:Date,
+      required:true
     },
+    startTime:{
+      type:Date,
+      default:null,
+      required:true
+    },
+    endTime:{
+      type:Date,
+      default:null,
+      required:true
+    },
+    duration: {
+      type: Number,
+      required:true,
+    },
+
   },
   { timestamps: true }
 );
 
 // TTL Index — MongoDB deletes the document when current time passes expiresAt
-interviewPostSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+interviewPostSchema.index({ endTime: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("inter_portal_posts", interviewPostSchema);

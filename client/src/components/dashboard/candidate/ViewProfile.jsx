@@ -19,8 +19,7 @@ const ViewProfile = ({ onEdit }) => {
         setProfile(
           response.data.profile
         );
-
-
+        
       } catch (error) {
         console.error(error);
       }
@@ -218,12 +217,11 @@ const ViewProfile = ({ onEdit }) => {
 
       </div>
       <button
-        onClick={onEdit}
-        className="px-4 py-2 bg-indigo-600 rounded-lg text-white"
-      >
-        Update Profile
-      </button>
-
+  onClick={onEdit}
+  className="px-4 py-2 bg-indigo-600 rounded-lg text-white cursor-pointer"
+>
+  Update Profile
+</button>
 
     </div>
   );
