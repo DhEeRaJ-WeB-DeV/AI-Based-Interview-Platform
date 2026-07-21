@@ -246,6 +246,36 @@ const SearchCandidates = () => {
         </div>
       )}
 
+      {selectCandidate.projects?.length > 0 && (
+        <div>
+          <h3 className="font-semibold mb-3">Projects</h3>
+
+          <div className="space-y-4">
+            {selectCandidate.projects.map((pro, i) => (
+              <div
+                key={i}
+                className="border-l-2 border-slate-700 pl-4"
+              >
+                <p className="font-medium">
+                  {pro.title}
+
+                </p>
+
+                 <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-gray-500">
+                  {pro.technologies.map((tech, index) => (
+                    <span key={index} className="before:content-['•'] before:mr-2 before:text-cyan-400">
+                      {tech.trim()}
+                    </span>
+                  ))}
+                </p>
+                
+                <p className="list-disc list-inside mt-2 text-gray-300">{pro.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Education */}
       {selectCandidate.education?.length > 0 && (
         <div>
@@ -272,6 +302,22 @@ const SearchCandidates = () => {
           </div>
         </div>
       )}
+       {selectCandidate.certificates?.length > 0 && (
+        <div>
+          <h3 className="font-semibold mb-3">certificates</h3>
+
+          <div className="space-y-4">
+            {selectCandidate.certificates.map((cer, i) => (
+              <span
+                  key={i}
+                  className="px-3 py-1 bg-emerald-600 rounded-full text-white text-sm"
+                >
+                  {cer}
+                </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   </div>
 )}
@@ -280,3 +326,4 @@ const SearchCandidates = () => {
 };
 
 export default SearchCandidates;
+

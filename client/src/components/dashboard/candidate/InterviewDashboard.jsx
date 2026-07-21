@@ -2,32 +2,69 @@ import { useCallback, useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
 import { useFetchData } from "../../../hooks/useFetchData";
 
-const TimeLeft = ({ expiresAt }) => {
-  const [timeLeft, setTimeLeft] = useState("");
+const TimeLeft = ({ startTime, endTime }) => {
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     const calc = () => {
-      const diff = new Date(expiresAt) - new Date();
+      const now = new Date();
+      const start = new Date(startTime);
+      const end = new Date(endTime);
 
-      if (diff <= 0) {
-        setTimeLeft("Expiring soon");
+      // Before interview starts
+      if (now < start) {
+        const diff = start - now;
+
+        const hrs = Math.floor(diff / 1000 / 60 / 60);
+        const mins = Math.floor((diff / 1000 / 60) % 60);
+
+        setMessage(
+          hrs > 0
+            ? `Starts in ${hrs}h ${mins}m`
+            : `Starts in ${mins}m`
+        );
         return;
       }
 
-      const mins = Math.floor((diff / 1000 / 60) % 60);
-      const hrs = Math.floor(diff / 1000 / 60 / 60);
-      setTimeLeft(hrs > 0 ? `${hrs}h ${mins}m left` : `${mins}m left`);
+      // Interview is running
+      if (now <= end) {
+        const diff = end - now;
+
+        const hrs = Math.floor(diff / 1000 / 60 / 60);
+        const mins = Math.floor((diff / 1000 / 60) % 60);
+
+        setMessage(
+          hrs > 0
+            ? `${hrs}h ${mins}m remaining`
+            : `${mins}m remaining`
+        );
+        return;
+      }
+
+      // Interview expired
+      setMessage("Interview window has ended");
     };
 
     calc();
-    const interval = setInterval(calc, 30000);
-    return () => clearInterval(interval);
-  }, [expiresAt]);
 
-  return <span className="text-xs font-medium text-amber-300">{timeLeft}</span>;
+    const interval = setInterval(calc, 30000);
+
+    return () => clearInterval(interval);
+  }, [startTime, endTime]);
+
+  return (
+    <span className="text-xs font-medium text-amber-300">
+      {message}
+    </span>
+  );
 };
 
 const CandidateDashboard = ({ onAttend }) => {
+const fetchPosts = useCallback(async () => {
+  const { data } = await api.get("/interview-posts/dashboard");
+  const allPosts = data.posts || [];
+  return allPosts.filter((post) => post.status === "scheduled");
+}, []);
 
    const isChromeBrowser = () => {
   if (navigator.userAgentData) {
@@ -122,6 +159,34 @@ const CandidateDashboard = ({ onAttend }) => {
         </div>
       ) : (
         <div className="grid gap-4">
+  {posts.map((post) => {
+    const now = new Date();
+    const start = new Date(post.startTime);
+    const end = new Date(post.endTime);
+
+    const hasStarted = now >= start;
+    const hasExpired = now > end;
+
+    return (
+      <article
+        key={post._id}
+        className="rounded-lg border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/10"
+      >
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-semibold">{post.role}</h3>
+
+              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+                {post.roundName}
+              </span>
+            </div>
+
+            <div className="mb-3 flex flex-wrap gap-2">
+              {post.skills?.map((skill) => (
+                <span
+                  key={skill}
+                  className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-200"
           {posts.map((post) => (
             <article
               key={post._id}
@@ -172,12 +237,73 @@ const CandidateDashboard = ({ onAttend }) => {
                     }
                     className="h-11 shrink-0 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500"
                 >
-                  Start interview
-                </button>
-              </div>
-            </article>
-          ))}
+                  {skill}
+                </span>
+              ))}
+            </div>
+
+            <div className="mb-2 flex flex-wrap gap-3 text-sm text-slate-400">
+              <span>
+                {post.candidateType === "fresher"
+                  ? "Fresher"
+                  : `${post.minExperience}-${post.maxExperience} yrs`}
+              </span>
+
+              {post.difficulty && <span>{post.difficulty}</span>}
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-slate-400">
+                Starts:{" "}
+                {new Date(post.startTime).toLocaleString([], {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </p>
+
+              <TimeLeft
+                startTime={post.startTime}
+                endTime={post.endTime}
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!hasStarted) {
+                toast("Your interview hasn't started yet.", {
+                  icon: "⏰",
+                });
+                return;
+              }
+
+              if (hasExpired) {
+                toast.error("This interview window has expired.");
+                return;
+              }
+
+              onAttend(post);
+            }}
+            className={`h-11 shrink-0 rounded-md px-5 text-sm font-semibold text-white transition-colors cursor-pointer ${
+              hasExpired
+                ? "bg-red-600 hover:bg-red-500"
+                : hasStarted
+                ? "bg-emerald-600 hover:bg-emerald-500"
+                : "bg-slate-700 hover:bg-slate-600"
+            }`}
+          >
+            {hasExpired
+              ? "Expired"
+              : hasStarted
+              ? "Start Interview"
+              : "Not Started"}
+          </button>
         </div>
+      </article>
+    );
+  })}
+</div>
       )}
     </div>
   );

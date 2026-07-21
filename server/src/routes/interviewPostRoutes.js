@@ -5,10 +5,8 @@ const {
   createInterviewPost,
   Can_getDashboardPosts,
   Rec_getDashboardPosts,
-  getInterviewPostById,
-  cancelInterviewPost,
-  completeInterviewPost,
-  deleteInterviewPost
+  deleteInterviewPost,
+  selectInterviewSlot
 } = require("../controllers/interviewPostController");
 
 const authMiddleware = require("../middlewares/authMiddleware");
@@ -23,11 +21,11 @@ router.get("/dashboard", authMiddleware, roleMiddleware("candidate"), Can_getDas
 // Recruiter — see all available interviews on dashboard
 router.get("/my-posts", authMiddleware, roleMiddleware("recruiter"), Rec_getDashboardPosts);
 
-// Candidate — get full details of one interview before attending
-router.get("/:postId", authMiddleware, roleMiddleware("candidate"), getInterviewPostById);
+// Candidate — confirm their chosen time slot
+router.post("/:postId/select-slot", authMiddleware, roleMiddleware("candidate"), selectInterviewSlot);
 
-// Candidate — mark interview as completed
-router.patch("/:postId/complete", authMiddleware, roleMiddleware("candidate"), completeInterviewPost);
+// // // Candidate — get full details of one interview before attending
+// router.get("/:postId", authMiddleware, roleMiddleware("candidate"), getInterviewPostById);
 
 // Recruiter - delete the post they made 
 router.delete("/:postId", authMiddleware, roleMiddleware("recruiter"), deleteInterviewPost);

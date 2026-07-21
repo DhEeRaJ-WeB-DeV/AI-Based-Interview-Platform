@@ -7,27 +7,152 @@ const fs = require("fs")
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const AIUsage = require("../models/AIUsage");
 const Admin = require("../models/Admin")
-const {createMailTransporter} = require("../controllers/authController")
+const {createMailTransporter} = require("../controllers/authController");
+const User = require('../models/User');
 let postidforviolation = ""
-// ── Start Interview + Generate All Questions ───────────────────
+
 const startInterview = async (req, res) => {
   try {
 
     const { jobRole, jobDescription, skills, difficulty, numberOfQuestions, postId} = req.body;
     const candidateId = req.user.id;
     postidforviolation = postId
-    // generate all questions at once
-    const prompt = `You are conducting a ${difficulty} level job interview for the role of ${jobRole}.
-    Job description: ${jobDescription}
-    Required skills: ${skills.join(',')}
-    
-    Generate exactly ${numberOfQuestions} interview questions following these rules:
-    1. Question 1 must always be: "Tell me about yourself"
-    2. Questions 2-4 should be technical questions based on the job role and required skills.
-    3. Question 5 should be a behavioral/situational question.
-    4. Question 6 should be: "Do you have any questions for us?"
-    5. Do not repeat any question.
-    6. Keep questions clear and concise.
+
+    const user = await User.findById(candidateId).select("name email skills education experience projects");
+    if (!user) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+  //created this helper functions to format education for the prompt
+    function formatEducation(education = []) {
+      if (!education.length) return "Not provided";
+
+      return education
+        .map(
+          (edu) => `
+    - ${edu.degree}
+      Institution: ${edu.institution}
+      Duration: ${edu.years}
+      GPA: ${edu.gpa}
+      Location: ${edu.location}`
+        )
+        .join("\n");
+    }
+//created this helper functions to format experience for the prompt
+    function formatExperience(experience = []) {
+      if (!experience.length) return "Fresher";
+
+      return experience
+        .map(
+          (exp) => `
+    - ${exp.designation} at ${exp.company}
+      Duration: ${exp.dates}
+      Responsibilities:
+      ${exp.description?.map((d) => `• ${d}`).join("\n  ") || "Not provided"}`
+        )
+        .join("\n");
+    }
+//created this helper functions to format projects for the prompt 
+    function formatProjects(projects = []) {
+      if (!projects.length) return "No projects provided";
+
+      return projects
+        .map(
+          (project) => `
+    - ${project.title}
+      Technologies: ${project.technologies?.join(", ") || "Not specified"}
+      Description: ${project.description}`
+        )
+        .join("\n");
+    }
+
+    // generate all questions at once based on the job requirements and candidate profile
+    const prompt = `
+  You are an experienced technical interviewer conducting a ${difficulty} level interview for the role of ${jobRole}.
+
+  ========================
+  JOB REQUIREMENTS
+  ========================
+
+  Role:
+  ${jobRole}
+
+  Job Description:
+  ${jobDescription}
+
+  Required Skills:
+  ${skills.join(", ")}
+
+  ========================
+  CANDIDATE PROFILE
+  ========================
+
+  Name:
+  ${user.name}
+
+  Current Role:
+  ${user.role || "Not provided"}
+
+  Skills:
+  ${user.skills?.length ? user.skills.join(", ") : "Not provided"}
+
+  Education:
+  ${formatEducation(user.education)}
+
+  Experience:
+  ${formatExperience(user.experience)}
+
+  Projects:
+  ${formatProjects(user.projects)}
+
+  ========================
+  YOUR TASK
+  ========================
+
+  Generate exactly ${numberOfQuestions} interview questions that evaluate how well the candidate fits this role by considering BOTH:
+
+  1. The job requirements.
+  2. The candidate's profile.
+
+  Interview Rules:
+
+  1. Question 1 MUST always be:
+    "Tell me about yourself."
+
+  2. Questions 2-4 MUST be technical.
+    - Base them on BOTH the job requirements and the candidate's profile.
+    - Prioritize skills that appear in both the required skills and the candidate's skills.
+    - If the candidate has relevant projects, ask project-specific technical questions about:
+      • architecture
+      • implementation
+      • design decisions
+      • debugging
+      • optimization
+      • scalability
+      • security
+      • testing
+      • deployment
+      • trade-offs
+    - If the candidate has relevant work experience, ask questions related to technologies, responsibilities, and challenges from that experience.
+    - If an important required skill is NOT present in the candidate's profile, ask a conceptual question to evaluate their understanding.
+    - Match the complexity of the questions to the selected difficulty level (${difficulty}).
+
+  3. Question 5 MUST be behavioral or situational.
+    - If the candidate has work experience, base the question on realistic workplace situations.
+    - If the candidate is a fresher, ask a project-based or hypothetical scenario relevant to the role.
+
+  4. Question 6 MUST always be:
+    "Do you have any questions for us?"
+
+  Additional Rules:
+
+  - Personalize questions whenever possible.
+  - Do NOT ask the candidate to simply list their skills, explain their resume, or repeat information already available in the candidate profile.
+  - Avoid generic questions when the candidate's projects or experience provide enough context for deeper technical questions.
+  - Do NOT repeat any question.
+  - Keep questions clear, concise, and interview-appropriate.
+  - Ensure every question is unique.
+  - Return EXACTLY ${numberOfQuestions} questions.
     
     Return ONLY a valid JSON array of 6 objects, nothing else. No markdown, no explanation.
     Format:
@@ -94,7 +219,6 @@ const startInterview = async (req, res) => {
   }
 };
 
-// ── Get Next Question (just fetch from DB, no AI call) ─────────
 const getNextQuestion = async (req, res) => {
   try {
     let interview = null;
@@ -104,7 +228,7 @@ const getNextQuestion = async (req, res) => {
     }
     if (!interview) return res.status(404).json({ message: 'Interview not found' });
 
-    // find the next unanswered question
+
     const nextQuestion = interview.questions.find((q) => !q.answeredAt);
 
     if (!nextQuestion) {
@@ -169,7 +293,7 @@ const uploadRecording = async (req, res) => {
   }
 };
 
-// ── Save Answer ────────────────────────────────────────────────
+
 const saveAnswer = async (req, res) => {
   try {
     const { questionId, answerText, recordingUrl } = req.body;
@@ -228,7 +352,7 @@ const interview_violation = async (req, res) => {
 }
 
 
-// ── Submit & Evaluate ──────────────────────────────────────────
+
 const submitInterview = async (req, res) => {
   try {
     
@@ -251,7 +375,7 @@ if (existingResult) {
     interview.submittedAt = new Date();
     await interview.save();
 
-    // evaluate each answered question
+   
     let totalScore = 0;
     let answeredCount = 0;
 
@@ -309,7 +433,7 @@ Evaluate and return ONLY a valid JSON object, no markdown, no explanation:
       ? Math.round(totalScore / answeredCount)
       : 0;
 
-    // generate summary
+   
     const summaryPrompt = `Based on this interview for ${interview.jobRole}:
 ${JSON.stringify(interview.questions.map(q => ({
   question:   q.questionText,
@@ -371,7 +495,6 @@ Return ONLY a valid JSON object, no markdown, no explanation:
   }
 };
 
-// ── Get Result ─────────────────────────────────────────────────
 const getResult = async (req, res) => {
   try {
     const result = await Result.findOne({ interviewId: req.params.interviewId })

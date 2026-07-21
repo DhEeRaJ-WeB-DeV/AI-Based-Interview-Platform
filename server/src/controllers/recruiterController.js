@@ -13,7 +13,7 @@ const cloudinary  = require("../config/cloudinary")
 const getCandidates = async (req, res) => {
   try {
     const candidates = await User.find({ role: "candidate" })
-      .select("name email skills experience education profileCompleted")
+      .select("name email skills experience education projects certificates profileCompleted")
       .sort({ createdAt: -1 });
     res.status(200).json({ candidates });
   } catch (err) {
