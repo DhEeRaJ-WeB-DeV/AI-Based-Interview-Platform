@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import api from "../../../api/axiosClient";
 
-const ViewProfile = ({onEdit}) => {
+const ViewProfile = ({ onEdit }) => {
 
   const [profile, setProfile] = useState(null);
 
@@ -83,7 +83,7 @@ const ViewProfile = ({onEdit}) => {
 
         <div className="flex flex-wrap gap-2">
 
-          {profile.skills?.map((skill,index)=>(
+          {profile.skills?.map((skill, index) => (
             <span
               key={index}
               className="px-3 py-1 bg-indigo-600 rounded-full text-white text-sm"
@@ -102,23 +102,23 @@ const ViewProfile = ({onEdit}) => {
           Education
         </h2>
 
-       {profile.education?.map((edu, index) => (
-  <div
-    key={index}
-    className="mb-4 border-b border-slate-700 pb-3"
-  >
-    <p className="text-white font-medium">{edu.degree}</p>
-    <p className="text-slate-300">{edu.institution}</p>
-    <p className="text-slate-400">
-      {edu.location} • {edu.years}
-    </p>
-    {edu.gpa && (
-      <p className="text-slate-400">
-        GPA: {edu.gpa}
-      </p>
-    )}
-  </div>
-))}
+        {profile.education?.map((edu, index) => (
+          <div
+            key={index}
+            className="mb-4 border-b border-slate-700 pb-3"
+          >
+            <p className="text-white font-medium">{edu.degree}</p>
+            <p className="text-slate-300">{edu.institution}</p>
+            <p className="text-slate-400">
+              {edu.location} • {edu.years}
+            </p>
+            {edu.gpa && (
+              <p className="text-slate-400">
+                GPA: {edu.gpa}
+              </p>
+            )}
+          </div>
+        ))}
 
       </div>
 
@@ -129,31 +129,31 @@ const ViewProfile = ({onEdit}) => {
         </h2>
 
         {profile.experience?.map((exp, index) => (
-  <div
-    key={index}
-    className="mb-4 border-b border-slate-700 pb-3"
-  >
-    <p className="text-white font-medium">
-      {exp.designation}
-    </p>
+          <div
+            key={index}
+            className="mb-4 border-b border-slate-700 pb-3"
+          >
+            <p className="text-white font-medium">
+              {exp.designation}
+            </p>
 
-    <p className="text-slate-300">
-      {exp.company}
-    </p>
+            <p className="text-slate-300">
+              {exp.company}
+            </p>
 
-    <p className="text-slate-400">
-      {exp.dates}
-    </p>
+            <p className="text-slate-400">
+              {exp.dates}
+            </p>
 
-    {exp.description?.length > 0 && (
-      <ul className="list-disc ml-5 mt-2 text-slate-300">
-        {exp.description.map((point, i) => (
-          <li key={i}>{point}</li>
+            {exp.description?.length > 0 && (
+              <ul className="list-disc ml-5 mt-2 text-slate-300">
+                {exp.description.map((point, i) => (
+                  <li key={i}>{point}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         ))}
-      </ul>
-    )}
-  </div>
-))}
 
       </div>
 
@@ -163,57 +163,57 @@ const ViewProfile = ({onEdit}) => {
           Projects
         </h2>
 
-       {profile.projects?.map((project, index) => (
-  <div
-    key={index}
-    className="mb-4 border-b border-slate-700 pb-3"
-  >
-    <h3 className="text-white font-medium">
-      {project.title}
-    </h3>
-
-    <p className="text-slate-300 mt-2">
-      {project.description}
-    </p>
-
-    {project.technologies?.length > 0 && (
-      <div className="flex flex-wrap gap-2 mt-3">
-        {project.technologies.map((tech, i) => (
-          <span
-            key={i}
-            className="px-2 py-1 bg-slate-700 rounded text-sm text-white"
+        {profile.projects?.map((project, index) => (
+          <div
+            key={index}
+            className="mb-4 border-b border-slate-700 pb-3"
           >
-            {tech}
-          </span>
+            <h3 className="text-white font-medium">
+              {project.title}
+            </h3>
+
+            <p className="text-slate-300 mt-2">
+              {project.description}
+            </p>
+
+            {project.technologies?.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {project.technologies.map((tech, i) => (
+                  <span
+                    key={i}
+                    className="px-2 py-1 bg-slate-700 rounded text-sm text-white"
+                  >
+                    {tech}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
-      </div>
-    )}
-  </div>
-))}
 
 
-<div className="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
-  <h2 className="text-xl font-semibold text-white mb-4">
-    Certifications
-  </h2>
+        <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Certifications
+          </h2>
 
-  {profile.certificates?.length > 0 ? (
-    <div className="flex flex-wrap gap-2">
-      {profile.certificates.map((certification, index) => (
-        <span
-          key={index}
-          className="px-3 py-1 bg-emerald-600 rounded-full text-white text-sm"
-        >
-          {certification}
-        </span>
-      ))}
-    </div>
-  ) : (
-    <p className="text-slate-400">
-      No certifications added.
-    </p>
-  )}
-</div>
+          {profile.certificates?.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {profile.certificates.map((certification, index) => (
+                <span
+                  key={index}
+                  className="px-3 py-1 bg-emerald-600 rounded-full text-white text-sm"
+                >
+                  {certification}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-400">
+              No certifications added.
+            </p>
+          )}
+        </div>
 
       </div>
       <button
