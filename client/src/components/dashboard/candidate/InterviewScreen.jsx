@@ -5,9 +5,10 @@ import api from "../../../api/axiosClient";
 import { useTabSwitchGuard } from "../../../hooks/useTabSwitchGuard";
 import { useMediaRecorder } from "./hooks/useMediaRecorder";
 import { useSpeechToText } from "./hooks/useSpeechToText";
+import { useNavigationGuard } from "./hooks/useNavigationGuard";
 
 const TOTAL_QUESTIONS = 6;
-const TIME_PER_QUESTION = 120;
+
 
 const steps = [
   "Introduction",
@@ -24,9 +25,11 @@ export default function InterviewScreen({ interviewId }) {
   const [question, setQuestion] = useState(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(TIME_PER_QUESTION);
+  const [timeLeft, setTimeLeft] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [interviewFinished, setInterviewFinished] = useState(false);
+  const [durationLoaded, setDurationLoaded] = useState(false);
 
   const timerRef = useRef(null);
   const videoRef = useRef(null);
@@ -63,6 +66,12 @@ export default function InterviewScreen({ interviewId }) {
     [cleanupSession, navigate]
   );
 
+//for candidate to not pressing back button
+useNavigationGuard({
+  enabled: interviewFinished,
+});
+
+//for candidate to not switch the tab
   useTabSwitchGuard({
     enabled: true,
     maxViolations: 3,
@@ -102,7 +111,7 @@ export default function InterviewScreen({ interviewId }) {
       const res = await api.get(`/interview/${interviewId}/question`);
       setQuestion(res.data.question);
       setQuestionIndex((prev) => prev + 1);
-      setTimeLeft(TIME_PER_QUESTION);
+
       resetTranscript();
     } catch(err) {
       toast.error("Failed to load question. Please try again.");
@@ -110,6 +119,29 @@ export default function InterviewScreen({ interviewId }) {
       setLoading(false);
     }
   }, [interviewId, resetTranscript]);
+
+  //to get the duration window
+  const getDuration = useCallback(async () => {
+    try {
+      const res = await api.get("/interview-posts/dashboard");
+      const post = res.data.posts.find(
+  (p) => p.status === "scheduled"
+);
+
+      if (!post) {
+        toast.error("Interview not found");
+        return null;
+      }
+
+      const seconds = post.duration * 60;
+      setTimeLeft(seconds);
+      setDurationLoaded(true);
+      return seconds;
+    } catch (error) {
+      toast.error("Couldn't get interview duration.");
+      return null;
+    }
+  });
 
   useEffect(() => {
     const init = async () => {
@@ -119,10 +151,14 @@ export default function InterviewScreen({ interviewId }) {
         if (videoRef.current && stream) {
           videoRef.current.srcObject = stream;
         }
-
+         
+      const seconds = await getDuration();
+       if (!seconds) return;
+        
         startListening();
         await fetchQuestion();
-      } catch {
+      } catch(err) {
+        console.error(err);
         toast.error("Camera or microphone could not be started.");
       }
     };
@@ -132,9 +168,9 @@ export default function InterviewScreen({ interviewId }) {
     return () => {
       cleanupSession();
     };
-    // Camera, mic, and first-question setup must run once for the session.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+
 
   const uploadRecording = useCallback(
     async (blob) => {
@@ -165,12 +201,12 @@ export default function InterviewScreen({ interviewId }) {
     [interviewId, question, transcript]
   );
 
-  const handleNext = useCallback(async () => {
-    if (submitting || !question) {
+
+  const handleNext = useCallback(async (timeExpired = false)=> {
+    if (submitting || interviewFinished || !question) {
       return;
     }
 
-    clearInterval(timerRef.current);
     stopListening();
     setSubmitting(true);
 
@@ -179,11 +215,13 @@ export default function InterviewScreen({ interviewId }) {
       const recordingUrl = blob ? await uploadRecording(blob) : null;
       await saveAnswer(recordingUrl);
 
-      if (questionIndex >= TOTAL_QUESTIONS) {
+      if (timeExpired || questionIndex >= TOTAL_QUESTIONS) {
         await api.post(
           `/interview/${interviewId}/submit`,
           {}
         );
+
+        setInterviewFinished(true);
         cleanupSession();
         setShowSuccessModal(true);
         return;
@@ -217,27 +255,23 @@ export default function InterviewScreen({ interviewId }) {
     uploadRecording,
   ]);
 
-  useEffect(() => {
-    if (!question) {
-      return undefined;
-    }
-
-    clearInterval(timerRef.current);
+useEffect(() => {
+    if (!durationLoaded) return;
 
     timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          handleNext();
-          return 0;
-        }
+        setTimeLeft(prev => {
+            if (prev <= 1) {
+                clearInterval(timerRef.current);
+                handleNext(true); // auto submit
+                return 0;
+            }
 
-        return prev - 1;
-      });
+            return prev - 1;
+        });
     }, 1000);
 
     return () => clearInterval(timerRef.current);
-  }, [handleNext, question]);
+}, [durationLoaded, handleNext]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
@@ -317,7 +351,7 @@ export default function InterviewScreen({ interviewId }) {
               </div>
               <button
                 type="button"
-                onClick={handleNext}
+                onClick={() => handleNext()}
                 disabled={loading || submitting}
                 className="h-10 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >

@@ -47,8 +47,8 @@ export default function InstructionPage({post, onBack, onStart }) {
         toast.success("Interview started.");
         onStart(response.data.interviewId);
       }
-    } catch {
-      toast.error("Failed to start the interview.");
+    } catch(err) {
+      toast.error(err.response?.data?.message||"Failed to start the interview.");
     }
   };
 
@@ -57,9 +57,9 @@ export default function InstructionPage({post, onBack, onStart }) {
       <button
         type="button"
         onClick={onBack}
-        className="mb-6 flex items-center gap-1 text-sm text-slate-400 transition-colors hover:text-white"
+        className="mb-6 flex items-center gap-1 text-sm text-slate-400 transition-colors hover:text-white cursor-pointer"
       >
-        Back to dashboard
+        ← Back to dashboard
       </button>
 
       <section className="rounded-lg border border-slate-800 bg-slate-900/80 p-6">

@@ -31,7 +31,6 @@ const getRecruiters = async (req, res) => {
   }
 };
 
-
 const addRecruiter = async (req, res) => {
   try {
 
