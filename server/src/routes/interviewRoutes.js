@@ -10,18 +10,32 @@ startInterview,
   interview_violation,
   submitInterview,
   getResult,
-  uploadRecording
 } = require('../controllers/interviewController');
 
 const recordingUpload = require("../middlewares/recordingMiddleware");
 
-router.post("/upload-recording",recordingUpload.single("video"),uploadRecording);
+// router.post("/upload-recording",recordingUpload.single("video"),uploadRecording);
 
 router.post('/start-interview',authMiddleware, roleMiddleware('candidate'), startInterview);
 
 router.get ('/:id/question',authMiddleware, roleMiddleware('candidate'), getNextQuestion);
 
-router.post('/:id/answer',authMiddleware, roleMiddleware('candidate'), saveAnswer);
+router.post(
+    "/:id/answer",
+    authMiddleware,
+    roleMiddleware("candidate"),
+    recordingUpload.fields([
+        {
+            name: "video",
+            maxCount: 1,
+        },
+        {
+            name: "audio",
+            maxCount: 1,
+        },
+    ]),
+    saveAnswer
+);
 
 router.post("/interview-violation",authMiddleware,roleMiddleware("candidate"),interview_violation);
 

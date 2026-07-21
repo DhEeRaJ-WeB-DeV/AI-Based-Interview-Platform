@@ -116,53 +116,6 @@ catch(err){
     res.status(500).json({ message: "Server error." });
 }
 }
-// ─────────────────────────────────────────────
-// GET /api/interviews/:postId
-// Candidate fetches full post before starting interview
-// ─────────────────────────────────────────────
-const getInterviewPostById = async (req, res) => {
-  try {
-    const post = await InterviewPost.findById(req.params.postId);
-
-    if (!post) {
-      return res.status(404).json({ message: "Interview not found or has expired." });
-    }
-
-    if (post.status !== "active" || post.expiresAt < new Date()) {
-      return res.status(410).json({ message: "This interview is no longer available." });
-    }
-
-    if (post.candidateEmail !== req.user.email) {
-      return res.status(403).json({ message: "This interview is not meant for you." });
-    }
-
-    res.status(200).json({ post });
-  } catch (err) {
-    console.error("getInterviewPostById error:", err);
-    res.status(500).json({ message: "Server error." });
-  }
-};
-
-
-// Call this when candidate completes the interview
-const completeInterviewPost = async (req, res) => {
-  try {
-    const post = await InterviewPost.findById(req.params.postId);
-
-    if (!post) {
-      return res.status(404).json({ message: "Post not found." });
-    }
-
-    post.status = "completed";
-    post.expiresAt = undefined; 
-    await post.save();
-
-    res.status(200).json({ message: "Interview marked as completed." });
-  } catch (err) {
-    console.error("completeInterviewPost error:", err);
-    res.status(500).json({ message: "Server error." });
-  }
-};
 
 
 // delete post by the recruiter
@@ -180,7 +133,5 @@ module.exports = {
   createInterviewPost,
   Can_getDashboardPosts,
   Rec_getDashboardPosts,
-  getInterviewPostById,
-  completeInterviewPost,
   deleteInterviewPost
 };

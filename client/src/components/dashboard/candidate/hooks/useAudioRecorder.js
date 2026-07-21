@@ -1,23 +1,34 @@
 import { useRef, useState } from "react";
+import socket from "../../../../socket/socketclient";
 
-export const useMediaRecorder = () => {
+export const useAudioRecorder = () => {
   const mediaRecorderRef = useRef(null);
   const chunksRef        = useRef([]);
   const streamRef        = useRef(null);
   const [recording, setRecording] = useState(false);
 
-const startRecording = (stream) => {
+ const startRecording = (stream) => {
+const audioStream = new MediaStream(
+    stream.getAudioTracks()
+);
 
-  streamRef.current = stream;
-  chunksRef.current = [];
+streamRef.current = audioStream;
 
-  const recorder = new MediaRecorder(stream);
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data);
-    };
+chunksRef.current = [];
+
+const recorder =
+    new MediaRecorder(audioStream);
+   recorder.ondataavailable = (e) => {
+
+    if (e.data.size === 0)
+        return;
+
+    chunksRef.current.push(e.data);
+
+};
 
     mediaRecorderRef.current = recorder;
-    recorder.start();
+    recorder.start(1000);
     setRecording(true);
   };
 
@@ -27,7 +38,7 @@ const startRecording = (stream) => {
       if (!recorder || recorder.state === "inactive") return resolve(null);
 
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "video/webm" });
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         setRecording(false);
         resolve(blob);
       };

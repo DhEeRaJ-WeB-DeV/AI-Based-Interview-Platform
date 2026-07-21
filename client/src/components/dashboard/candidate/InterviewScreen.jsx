@@ -2,11 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../../../api/axiosClient";
+import socket from "../../../socket/socketclient";
 import { useTabSwitchGuard } from "../../../hooks/useTabSwitchGuard";
 import { useMediaRecorder } from "./hooks/useMediaRecorder";
-import { useSpeechToText } from "./hooks/useSpeechToText";
 import { useSpeechSynthesis } from "./hooks/useTextToSpeech";
-
+import { useRealtimeAudio } from "./hooks/useRealtimeAudio";
 const TOTAL_QUESTIONS = 6;
 const TIME_PER_QUESTION = 120;
 
@@ -28,33 +28,100 @@ export default function InterviewScreen({ interviewId }) {
   const [timeLeft, setTimeLeft] = useState(TIME_PER_QUESTION);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
 
   const timerRef = useRef(null);
   const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
 
- const { startRecording, stopRecording, recording, streamRef } =
-  useMediaRecorder();
+  // Always holds the latest transcript synchronously, so handleNext can
+  // read it without waiting on a React re-render and without needing
+  // liveTranscript in its dependency array (which would redefine the
+  // callback — and reset the question timer — on every transcript delta).
+  const liveTranscriptRef = useRef("");
+
+  // Mirrors session.questionSeq on the backend. Bumped every time we move
+  // to a new question, so a transcript event tagged with an old seq number
+  // (e.g. one that was still in flight when the question changed) gets
+  // ignored instead of bleeding into the new question's transcript.
+  const questionSeqRef = useRef(0);
 
 const {
-  transcript,
-  listening,
-  startListening,
-  stopListening,
-  resetTranscript,
-} = useSpeechToText();
+    startRecording: startVideoRecording,
+    stopRecording: stopVideoRecording,
+    recording,
+    streamRef,
+} = useMediaRecorder();
+
+const {
+    startStreaming,
+    stopStreaming
+} = useRealtimeAudio();
+
+// socket test
+useEffect(() => {
+
+    socket.connect();
+
+    socket.on("connect", () => {
+
+        console.log("Connected:", socket.id);
+
+        socket.emit("join_interview", {
+            interviewId,
+        });
+
+    });
+
+    socket.on("joined_interview", (data) => {
+
+        console.log("Joined interview:", data.interviewId);
+
+    });
+
+    socket.on("transcript", (data) => {
+
+        console.log("Transcript:", data);
+
+        // Drop anything left over from a question we've already moved on
+        // from — this is what stops a late-arriving event from a previous
+        // answer showing up appended to the current one.
+        if (data.questionSeq !== questionSeqRef.current) {
+            return;
+        }
+
+        liveTranscriptRef.current = data.fullTranscript;
+        setLiveTranscript(data.fullTranscript);
+
+    });
+
+    return () => {
+
+        socket.off("connect");
+        socket.off("joined_interview");
+        socket.off("transcript");
+
+        socket.disconnect();
+
+    };
+
+}, [interviewId]);
+
 
 const { speak, stopSpeaking } = useSpeechSynthesis();
 
 const cleanupSession = useCallback(() => {
   clearInterval(timerRef.current);
 
-  stopListening();
   stopSpeaking();
+  stopStreaming();
+  setIsRecordingAnswer(false);
 
   if (streamRef.current) {
     streamRef.current.getTracks().forEach((track) => track.stop());
   }
-}, [stopListening, stopSpeaking, streamRef]);
+}, [stopSpeaking, streamRef]);
 
 const handleMalpractice = useCallback(
   (reason) => {
@@ -84,18 +151,33 @@ const fetchQuestion = useCallback(async () => {
 
     setQuestion(res.data.question);
 
+    // Reset the transcript on both sides as soon as we know we're on a
+    // new question — do NOT wait on speech synthesis to finish first.
+    // That was the actual bug: this reset used to live inside speak()'s
+    // onEnd callback, so if that callback ever got skipped, cancelled, or
+    // delayed (stopSpeaking() interrupting an utterance, browser TTS
+    // quirks, etc.), the reset silently never ran and every answer after
+    // that point kept appending onto the same never-cleared transcript.
+    questionSeqRef.current += 1;
+    socket.emit("start_question");
+    liveTranscriptRef.current = "";
+    setLiveTranscript("");
+
     stopSpeaking();
 
     speak(
-      res.data.question.questionText,
-      () => {
-        startListening();
-      }
-    );
+  res.data.question.questionText,
+  async () => {
+    // Only the mic actually needs to wait for TTS to finish — starting
+    // it earlier would let the mic pick up the AI's own spoken question.
+    setIsRecordingAnswer(true);
+
+    await startStreaming(mediaStreamRef.current);
+  }
+);
 
     setQuestionIndex((prev) => prev + 1);
     setTimeLeft(TIME_PER_QUESTION);
-    resetTranscript();
 
   } catch (err) {
     toast.error(
@@ -106,22 +188,35 @@ const fetchQuestion = useCallback(async () => {
   }
 }, [
   interviewId,
-  resetTranscript,
   speak,
   stopSpeaking,
-  startListening,
 ]);
 
 useEffect(() => {
   const init = async () => {
     try {
-      const stream = await startRecording();
+     const stream =
+    await navigator.mediaDevices.getUserMedia({
 
-      if (videoRef.current && stream) {
-        videoRef.current.srcObject = stream;
-      }
+        video:true,
 
-      await fetchQuestion();
+        audio:true,
+
+    });
+
+mediaStreamRef.current = stream;
+
+await startVideoRecording(stream);
+
+
+
+if(videoRef.current){
+
+    videoRef.current.srcObject = stream;
+
+}
+
+await fetchQuestion();
 
     } catch {
       toast.error(
@@ -139,48 +234,38 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
 
-const uploadRecording = useCallback(
-  async (blob) => {
-    try {
-      const formData = new FormData();
 
-      formData.append(
+const uploadAnswer = useCallback(async (videoBlob, transcriptText) => {
+
+    const formData = new FormData();
+
+    formData.append(
         "video",
-        blob,
+        videoBlob,
         `q${questionIndex}.webm`
-      );
-
-      const res = await api.post(
-        "/interview/upload-recording",
-        formData
-      );
-
-      return res.data.recordingUrl;
-
-    } catch {
-      toast.error(
-        "Recording upload failed. Saving answer without video."
-      );
-
-      return null;
-    }
-  },
-  [questionIndex]
-);
-
-const saveAnswer = useCallback(
-  async (recordingUrl) => {
-    await api.post(
-      `/interview/${interviewId}/answer`,
-      {
-        questionId: question._id,
-        answerText: transcript,
-        recordingUrl: recordingUrl || "",
-      }
     );
-  },
-  [interviewId, question, transcript]
-);
+
+    formData.append(
+        "questionId",
+        question._id
+    );
+
+    formData.append(
+        "transcript",
+        transcriptText || ""
+    );
+
+    await api.post(
+        `/interview/${interviewId}/answer`,
+        formData
+    );
+
+}, [
+    interviewId,
+    question,
+    questionIndex,
+]);
+
 
 const handleNext = useCallback(async () => {
   if (submitting || !question) {
@@ -189,19 +274,28 @@ const handleNext = useCallback(async () => {
 
   clearInterval(timerRef.current);
 
-  stopListening();
   stopSpeaking();
 
   setSubmitting(true);
 
   try {
-    const blob = await stopRecording();
 
-    const recordingUrl = blob
-      ? await uploadRecording(blob)
-      : null;
+    // Force OpenAI to finalize any speech still sitting in the buffer
+    // before we read the transcript, so the last sentence before "Next"
+    // isn't lost.
+    socket.emit("commit_audio");
+    await new Promise((resolve) => setTimeout(resolve, 900));
 
-    await saveAnswer(recordingUrl);
+    await stopStreaming();
+    setIsRecordingAnswer(false);
+
+   const videoBlob = await stopVideoRecording();
+
+
+await uploadAnswer(
+    videoBlob,
+    liveTranscriptRef.current
+);
 
     if (questionIndex >= TOTAL_QUESTIONS) {
       await api.post(
@@ -214,34 +308,36 @@ const handleNext = useCallback(async () => {
       return;
     }
 
-    const stream = await startRecording();
+await startVideoRecording(
+    mediaStreamRef.current
+);
 
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
 
-    await fetchQuestion();
+if (videoRef.current) {
+  videoRef.current.srcObject = mediaStreamRef.current;
+}
+
+await fetchQuestion();
 
   } catch (err) {
     toast.error(
       "Something went wrong. Please try again."
     );
-  } finally {
+  } 
+  finally {
     setSubmitting(false);
   }
-}, [
+},[
   cleanupSession,
   fetchQuestion,
   interviewId,
   question,
   questionIndex,
-  saveAnswer,
-  startRecording,
-  stopListening,
+  startVideoRecording,
+  stopVideoRecording,
   stopSpeaking,
-  stopRecording,
   submitting,
-  uploadRecording,
+  uploadAnswer,
 ]);
   useEffect(() => {
     if (!question) {
@@ -327,19 +423,19 @@ const handleNext = useCallback(async () => {
             </div>
 
             <div className="min-h-[120px] flex-1 text-sm leading-relaxed text-slate-300">
-              {transcript || (
+              {liveTranscript || (
                 <span className="text-slate-600">
                   Start speaking. Your answer will appear here.
                 </span>
               )}
-              {listening && (
+              {isRecordingAnswer && (
                 <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-white align-middle" />
               )}
             </div>
 
             <div className="flex flex-col gap-3 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-slate-500">
-                {listening ? "Listening..." : "Mic off"}
+                {isRecordingAnswer ? "Listening..." : "Mic off"}
               </div>
               <button
                 type="button"
@@ -358,7 +454,7 @@ const handleNext = useCallback(async () => {
         </div>
 
         <aside className="flex flex-col gap-4">
-          <section className="relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
+          {/* <section className="relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
             <video
               ref={videoRef}
               autoPlay
@@ -377,7 +473,7 @@ const handleNext = useCallback(async () => {
                 Camera initializing...
               </div>
             )}
-          </section>
+          </section> */}
 
           <section className="flex-1 rounded-lg border border-slate-800 bg-slate-900 p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
