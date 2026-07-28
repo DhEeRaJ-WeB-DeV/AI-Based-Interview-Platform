@@ -132,11 +132,17 @@ module.exports = (io) => {
                     questionSeq: session.questionSeq,
                 });
 
+                io.to(interviewId).emit("transcript_commit_complete");
                 return;
             }
 
             if (event.type === "error") {
                 console.error(`Realtime API error [${interviewId}]:`, event.error);
+
+                if (event.error?.code === "input_audio_buffer_commit_empty") {
+                    io.to(interviewId).emit("transcript_commit_complete");
+                }
+                return;
             }
 
         });

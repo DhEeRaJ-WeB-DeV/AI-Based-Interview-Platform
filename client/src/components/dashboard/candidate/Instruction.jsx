@@ -47,8 +47,9 @@ export default function InstructionPage({post, onBack, onStart }) {
         toast.success("Interview started.");
         onStart(response.data.interviewId);
       }
-    } catch {
-      toast.error("Failed to start the interview.");
+
+    } catch(err) {
+       toast.error(err.response?.data?.message || "Something went wrong");
     }
   };
 

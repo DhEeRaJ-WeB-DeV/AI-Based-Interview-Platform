@@ -34,7 +34,7 @@ export default function InterviewScreen({ interviewId }) {
   const timerRef = useRef(null);
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
-
+  const isFetchingQuestionRef = useRef(false);
   // Always holds the latest transcript synchronously, so handleNext can
   // read it without waiting on a React re-render and without needing
   // liveTranscript in its dependency array (which would redefine the
@@ -47,298 +47,342 @@ export default function InterviewScreen({ interviewId }) {
   // ignored instead of bleeding into the new question's transcript.
   const questionSeqRef = useRef(0);
 
-const {
+  const {
     startRecording: startVideoRecording,
     stopRecording: stopVideoRecording,
     recording,
     streamRef,
-} = useMediaRecorder();
+  } = useMediaRecorder();
 
-const {
+  const {
     startStreaming,
     stopStreaming
-} = useRealtimeAudio();
+  } = useRealtimeAudio();
 
-// socket test
-useEffect(() => {
+  // socket test
+  useEffect(() => {
 
     socket.connect();
 
     socket.on("connect", () => {
 
-        console.log("Connected:", socket.id);
+      console.log("Connected:", socket.id);
 
-        socket.emit("join_interview", {
-            interviewId,
-        });
+      socket.emit("join_interview", {
+        interviewId,
+      });
 
     });
 
     socket.on("joined_interview", (data) => {
 
-        console.log("Joined interview:", data.interviewId);
+      console.log("Joined interview:", data.interviewId);
 
     });
 
     socket.on("transcript", (data) => {
 
-        console.log("Transcript:", data);
+      console.log("Transcript:", data);
 
-        // Drop anything left over from a question we've already moved on
-        // from — this is what stops a late-arriving event from a previous
-        // answer showing up appended to the current one.
-        if (data.questionSeq !== questionSeqRef.current) {
-            return;
-        }
-
-        liveTranscriptRef.current = data.fullTranscript;
-        setLiveTranscript(data.fullTranscript);
+      // Drop anything left over from a question we've already moved on
+      // from — this is what stops a late-arriving event from a previous
+      // answer showing up appended to the current one.
+      if (data.questionSeq !== questionSeqRef.current) {
+        return;
+      }
+      liveTranscriptRef.current = data.fullTranscript;
+      setLiveTranscript(data.fullTranscript);
 
     });
 
     return () => {
 
-        socket.off("connect");
-        socket.off("joined_interview");
-        socket.off("transcript");
+      socket.off("connect");
+      socket.off("joined_interview");
+      socket.off("transcript");
 
-        socket.disconnect();
+      socket.disconnect();
 
     };
 
-}, [interviewId]);
+  }, [interviewId]);
 
 
-const { speak, stopSpeaking } = useSpeechSynthesis();
+  const { speak, stopSpeaking } = useSpeechSynthesis();
 
-const cleanupSession = useCallback(() => {
-  clearInterval(timerRef.current);
+  const cleanupSession = useCallback(() => {
+    clearInterval(timerRef.current);
 
-  stopSpeaking();
-  stopStreaming();
-  setIsRecordingAnswer(false);
+    stopSpeaking();
+    stopStreaming();
 
-  if (streamRef.current) {
-    streamRef.current.getTracks().forEach((track) => track.stop());
+    setIsRecordingAnswer(false);
+
+    // Stop MediaRecorder if it's still recording
+    stopVideoRecording().catch(() => { });
+
+    // Stop camera + microphone
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      mediaStreamRef.current = null;
+    }
+
+    // Remove video source
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, [
+    stopSpeaking,
+    stopStreaming,
+    stopVideoRecording,
+  ]);
+
+
+  // for tab switch violation
+  const handleMalpractice = useCallback(
+    (reason) => {
+      cleanupSession();
+
+      toast.error(
+        reason === "tab-switch"
+          ? "Tab switch detected. Interview session closed."
+          : "Interview focus lost. Session closed."
+      );
+
+      navigate("/dashboard", {
+        replace: true,
+        state: { malpractice: true },
+      });
+    },
+    [cleanupSession, navigate]
+  );
+
+ const fetchQuestion = useCallback(async () => {
+
+  // Prevent concurrent requests
+  if (isFetchingQuestionRef.current) {
+    return;
   }
-}, [stopSpeaking, streamRef]);
 
-const handleMalpractice = useCallback(
-  (reason) => {
-    cleanupSession();
+  isFetchingQuestionRef.current = true;
 
-    toast.error(
-      reason === "tab-switch"
-        ? "Tab switch detected. Interview session closed."
-        : "Interview focus lost. Session closed."
-    );
-
-    navigate("/dashboard", {
-      replace: true,
-      state: { malpractice: true },
-    });
-  },
-  [cleanupSession, navigate]
-);
-
-const fetchQuestion = useCallback(async () => {
   setLoading(true);
 
   try {
+
     const res = await api.get(
       `/interview/${interviewId}/question`
     );
 
+    if (!res.data.question) {
+      return;
+    }
+
     setQuestion(res.data.question);
 
-    // Reset the transcript on both sides as soon as we know we're on a
-    // new question — do NOT wait on speech synthesis to finish first.
-    // That was the actual bug: this reset used to live inside speak()'s
-    // onEnd callback, so if that callback ever got skipped, cancelled, or
-    // delayed (stopSpeaking() interrupting an utterance, browser TTS
-    // quirks, etc.), the reset silently never ran and every answer after
-    // that point kept appending onto the same never-cleared transcript.
     questionSeqRef.current += 1;
+
     socket.emit("start_question");
+
     liveTranscriptRef.current = "";
     setLiveTranscript("");
 
     stopSpeaking();
 
     speak(
-  res.data.question.questionText,
-  async () => {
-    // Only the mic actually needs to wait for TTS to finish — starting
-    // it earlier would let the mic pick up the AI's own spoken question.
-    setIsRecordingAnswer(true);
+      res.data.question.questionText,
+      async () => {
 
-    await startStreaming(mediaStreamRef.current);
-  }
-);
+        setIsRecordingAnswer(true);
+
+        await startStreaming(mediaStreamRef.current);
+
+      }
+    );
 
     setQuestionIndex((prev) => prev + 1);
+
     setTimeLeft(TIME_PER_QUESTION);
 
   } catch (err) {
+
     toast.error(
       "Failed to load question. Please try again."
     );
+
   } finally {
+
+    isFetchingQuestionRef.current = false;
+
     setLoading(false);
+
   }
+
 }, [
   interviewId,
   speak,
   stopSpeaking,
+  startStreaming,
 ]);
 
-useEffect(() => {
-  const init = async () => {
-    try {
-     const stream =
-    await navigator.mediaDevices.getUserMedia({
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const stream =
+          await navigator.mediaDevices.getUserMedia({
 
-        video:true,
+            video: true,
 
-        audio:true,
+            audio: true,
 
-    });
+          });
 
-mediaStreamRef.current = stream;
+        mediaStreamRef.current = stream;
 
-await startVideoRecording(stream);
-
-
-
-if(videoRef.current){
-
-    videoRef.current.srcObject = stream;
-
-}
-
-await fetchQuestion();
-
-    } catch {
-      toast.error(
-        "Camera or microphone could not be started."
-      );
-    }
-  };
-
-  init();
-
-  return () => {
-    cleanupSession();
-  };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+        await startVideoRecording(stream);
 
 
-const uploadAnswer = useCallback(async (videoBlob, transcriptText) => {
+
+        if (videoRef.current) {
+
+          videoRef.current.srcObject = stream;
+
+        }
+        await fetchQuestion();
+
+      } catch {
+        toast.error(
+          "Camera or microphone could not be started."
+        );
+      }
+    };
+
+    init();
+
+    return () => {
+      cleanupSession();
+    };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
+  const uploadAnswer = useCallback(async (videoBlob, transcriptText) => {
 
     const formData = new FormData();
 
     formData.append(
-        "video",
-        videoBlob,
-        `q${questionIndex}.webm`
+      "video",
+      videoBlob,
+      `q${questionIndex}.webm`
     );
 
     formData.append(
-        "questionId",
-        question._id
+      "questionId",
+      question._id
     );
 
     formData.append(
-        "transcript",
-        transcriptText || ""
+      "transcript",
+      transcriptText || ""
     );
 
     await api.post(
-        `/interview/${interviewId}/answer`,
-        formData
+      `/interview/${interviewId}/answer`,
+      formData
     );
 
-}, [
+  }, [
     interviewId,
     question,
     questionIndex,
-]);
+  ]);
 
 
-const handleNext = useCallback(async () => {
-  if (submitting || !question) {
-    return;
-  }
-
-  clearInterval(timerRef.current);
-
-  stopSpeaking();
-
-  setSubmitting(true);
-
-  try {
-
-    // Force OpenAI to finalize any speech still sitting in the buffer
-    // before we read the transcript, so the last sentence before "Next"
-    // isn't lost.
-    socket.emit("commit_audio");
-    await new Promise((resolve) => setTimeout(resolve, 900));
-
-    await stopStreaming();
-    setIsRecordingAnswer(false);
-
-   const videoBlob = await stopVideoRecording();
-
-
-await uploadAnswer(
-    videoBlob,
-    liveTranscriptRef.current
-);
-
-    if (questionIndex >= TOTAL_QUESTIONS) {
-      await api.post(
-        `/interview/${interviewId}/submit`,
-        {}
-      );
-
-      cleanupSession();
-      setShowSuccessModal(true);
+  const handleNext = useCallback(async () => {
+    if (submitting || !question) {
       return;
     }
 
-await startVideoRecording(
-    mediaStreamRef.current
-);
+    clearInterval(timerRef.current);
+
+    stopSpeaking();
+
+    setSubmitting(true);
+
+    try {
+
+      // Force OpenAI to finalize any speech still sitting in the buffer
+      // before we read the transcript, so the last sentence before "Next"
+      // isn't lost.
+      await new Promise((resolve) => {
+
+        socket.once("transcript_commit_complete", () => {
+          resolve();
+        });
+
+        socket.emit("commit_audio");
+
+      });
+
+      await stopStreaming();
+      setIsRecordingAnswer(false);
+
+      const videoBlob = await stopVideoRecording();
 
 
-if (videoRef.current) {
-  videoRef.current.srcObject = mediaStreamRef.current;
-}
+      const uploadPromise =
+        uploadAnswer(
+          videoBlob,
+          liveTranscriptRef.current
+        );
 
-await fetchQuestion();
+      if (questionIndex >= TOTAL_QUESTIONS) {
+        await api.post(
+          `/interview/${interviewId}/submit`,
+          {}
+        );
 
-  } catch (err) {
-    toast.error(
-      "Something went wrong. Please try again."
-    );
-  } 
-  finally {
-    setSubmitting(false);
-  }
-},[
-  cleanupSession,
-  fetchQuestion,
-  interviewId,
-  question,
-  questionIndex,
-  startVideoRecording,
-  stopVideoRecording,
-  stopSpeaking,
-  submitting,
-  uploadAnswer,
-]);
+        cleanupSession();
+        setShowSuccessModal(true);
+        return;
+      }
+
+      await startVideoRecording(
+        mediaStreamRef.current
+      );
+
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStreamRef.current;
+      }
+
+       await uploadPromise,
+      await fetchQuestion()
+
+    } catch (err) {
+      toast.error(
+        "Something went wrong. Please try again."
+      );
+    }
+    finally {
+      setSubmitting(false);
+    }
+  }, [
+    cleanupSession,
+    fetchQuestion,
+    interviewId,
+    question,
+    questionIndex,
+    startVideoRecording,
+    stopVideoRecording,
+    stopSpeaking,
+    submitting,
+    uploadAnswer,
+  ]);
   useEffect(() => {
     if (!question) {
       return undefined;
@@ -385,8 +429,8 @@ await fetchQuestion();
         </div>
         <div
           className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${isLowTime
-              ? "bg-red-950 text-red-200"
-              : "bg-amber-950 text-amber-200"
+            ? "bg-red-950 text-red-200"
+            : "bg-amber-950 text-amber-200"
             }`}
         >
           <span
@@ -493,8 +537,8 @@ await fetchQuestion();
                   <div key={step} className="flex items-center gap-3">
                     <div
                       className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${status === "done"
-                          ? "bg-emerald-950 text-emerald-300"
-                          : ""
+                        ? "bg-emerald-950 text-emerald-300"
+                        : ""
                         } ${status === "active" ? "bg-white text-slate-900" : ""
                         } ${status === "pending"
                           ? "bg-slate-800 text-slate-500"
@@ -531,10 +575,11 @@ await fetchQuestion();
             <button
               type="button"
               onClick={() => {
+                cleanupSession()
                 navigate("/dashboard", { replace: true })
-                setTimeout(() => {
-                  window.location.reload()
-                }, 2000);
+                // setTimeout(() => {
+                //   window.location.reload()
+                // }, 2000);
               }}
               className="rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500 cursor-pointer"
             >
