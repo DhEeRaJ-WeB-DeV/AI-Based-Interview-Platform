@@ -35,6 +35,9 @@ export default function InterviewScreen({ interviewId }) {
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const isFetchingQuestionRef = useRef(false);
+
+  // debugging purpose
+  const ans_countref = useRef(0);
   // Always holds the latest transcript synchronously, so handleNext can
   // read it without waiting on a React re-render and without needing
   // liveTranscript in its dependency array (which would redefine the
@@ -160,7 +163,9 @@ export default function InterviewScreen({ interviewId }) {
     [cleanupSession, navigate]
   );
 
+
  const fetchQuestion = useCallback(async () => {
+
 
   // Prevent concurrent requests
   if (isFetchingQuestionRef.current) {
@@ -184,7 +189,7 @@ export default function InterviewScreen({ interviewId }) {
     setQuestion(res.data.question);
 
     questionSeqRef.current += 1;
-
+    console.log("question no:", questionSeqRef.current)
     socket.emit("start_question");
 
     liveTranscriptRef.current = "";
@@ -269,7 +274,6 @@ export default function InterviewScreen({ interviewId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
   const uploadAnswer = useCallback(async (videoBlob, transcriptText) => {
 
     const formData = new FormData();
@@ -295,6 +299,8 @@ export default function InterviewScreen({ interviewId }) {
       formData
     );
 
+    ans_countref.current +=1
+    console.log("ans no:", ans_countref.current)
   }, [
     interviewId,
     question,
@@ -334,8 +340,8 @@ export default function InterviewScreen({ interviewId }) {
       const videoBlob = await stopVideoRecording();
 
 
-      const uploadPromise =
-        uploadAnswer(
+
+       await uploadAnswer(
           videoBlob,
           liveTranscriptRef.current
         );
@@ -360,7 +366,7 @@ export default function InterviewScreen({ interviewId }) {
         videoRef.current.srcObject = mediaStreamRef.current;
       }
 
-       await uploadPromise,
+      //  await uploadPromise,
       await fetchQuestion()
 
     } catch (err) {
@@ -383,6 +389,8 @@ export default function InterviewScreen({ interviewId }) {
     submitting,
     uploadAnswer,
   ]);
+
+  
   useEffect(() => {
     if (!question) {
       return undefined;
