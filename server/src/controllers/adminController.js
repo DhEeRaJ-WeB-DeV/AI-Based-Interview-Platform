@@ -191,8 +191,8 @@ const Deleteresults = async (req, res) => {
       })
     );
     
-    await Result.findByIdAndDelete(req.params.resultID);
     await Interview.findByIdAndDelete(result.interviewId)
+    await Result.findByIdAndDelete(req.params.resultID);
 
     return res.status(200).json({
       message: "Result deleted successfully",

@@ -1,20 +1,21 @@
 const Interview = require('../models/Interview');
-const Result    = require('../models/Result');
+const Result = require('../models/Result');
 const InterviewPost = require('../models/interviewpost')
-const OpenAI    = require('openai');
 const cloudinary = require("../config/cloudinary")
 const fs = require("fs")
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const AIUsage = require("../models/AIUsage");
 const Admin = require("../models/Admin")
 const {createMailTransporter} = require("../controllers/authController");
 const User = require('../models/User');
+const OpenAI = require('openai');
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 let postidforviolation = ""
 
 const startInterview = async (req, res) => {
   try {
 
-    const { jobRole, jobDescription, skills, difficulty, numberOfQuestions, postId} = req.body;
+    const { jobRole, jobDescription, skills, difficulty, numberOfQuestions, postId } = req.body;
     const candidateId = req.user.id;
     postidforviolation = postId
 
@@ -253,13 +254,13 @@ const startInterview = async (req, res) => {
       difficulty,
       status:'in_progress',
       startedAt: new Date(),
-      questions,             
+      questions,
     });
 
     res.status(201).json({
-      success:     true,
+      success: true,
       interviewId: interview._id,
-      message:     'Interview started',
+      message: 'Interview started',
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -269,7 +270,7 @@ const startInterview = async (req, res) => {
 const getNextQuestion = async (req, res) => {
   try {
     let interview = null;
-    if(!interview){
+    if (!interview) {
 
       interview = await Interview.findById(req.params.id);
     }
@@ -280,70 +281,42 @@ const getNextQuestion = async (req, res) => {
 
     if (!nextQuestion) {
       return res.status(200).json({
-        success:  true,
+        success: true,
         question: null,
-        message:  'All questions answered',
+        message: 'All questions answered',
       });
     }
 
     res.status(200).json({
-      success:  true,
+      success: true,
       question: {
-        _id:          nextQuestion._id,
+        _id: nextQuestion._id,
         questionText: nextQuestion.questionText,
-        category:     nextQuestion.category,
-        difficulty:   nextQuestion.difficulty,
-        orderIndex:   nextQuestion.orderIndex,
+        category: nextQuestion.category,
+        difficulty: nextQuestion.difficulty,
+        orderIndex: nextQuestion.orderIndex,
       },
       totalQuestions: interview.questions.length,
     });
-  } catch (err) {
+  } 
+  catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
 
-const uploadRecording = async (req, res) => {
-  try {
-
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No video uploaded",
-      });
-    }
-
-    const result = await cloudinary.uploader.upload(
-      req.file.path,
-      {
-        resource_type: "video",
-        folder: "interview-recordings",
-      }
-    );
-
-    fs.unlink(req.file.path, (err) => {
-  if (err) console.error(err);
-  });
-
-    res.status(200).json({
-      success: true,
-      recordingUrl: result.secure_url,
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-};
 
 
 const saveAnswer = async (req, res) => {
   try {
-    const { questionId, answerText, recordingUrl } = req.body;
+    const { questionId, transcript } = req.body;
+
+    const videoFile = req.files.video[0];
+
+    const result = await cloudinary.uploader.upload(videoFile.path, {
+      resource_type: "video",
+      folder: "interview-recordings",
+    });
 
     const interview = await Interview.findById(req.params.id);
     if (!interview) return res.status(404).json({ message: 'Interview not found' });
@@ -351,15 +324,26 @@ const saveAnswer = async (req, res) => {
     const question = interview.questions.id(questionId);
     if (!question) return res.status(404).json({ message: 'Question not found' });
 
-    question.answerText   = answerText;
-    question.recordingUrl = recordingUrl;
-    question.answeredAt   = new Date();
+    question.answerText = transcript || "";
+    question.recordingUrl = result.secure_url;
+    question.answeredAt = new Date();
+
+    fs.unlink(videoFile.path, () => {});
 
     await interview.save();
 
-    res.status(200).json({ success: true, message: 'Answer saved' });
+    res.json({
+      message: "answer saved",
+      success: true,
+      transcript,
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    console.log(err.message);
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -384,47 +368,46 @@ const interview_violation = async (req, res) => {
        has violated the interview rules by switching tabs multiple times, 
        and the interview post and interview has been terminated.`
     });
- 
+
     return res.status(201).json({
       message: "the violation action done"
     })
 
   }
   catch (err) {
-      res.status(500).json({
-        message:`something went wrong :${err}`
-      })
+    res.status(500).json({
+      message: `something went wrong :${err}`
+    })
   }
 
 }
 
 
-
 const submitInterview = async (req, res) => {
   try {
-    
+
     const interview = await Interview.findById(req.params.id);
     if (!interview) return res.status(404).json({ message: 'Interview not found' });
 
-     const existingResult = await Result.findOne({
-  interviewId: interview._id,
-});
+    const existingResult = await Result.findOne({
+      interviewId: interview._id,
+    });
 
-if (existingResult) {
-  return res.status(200).json({
-    success: true,
-    resultId: existingResult._id,
-    message: "Result already exists",
-  });
-}
+    if (existingResult) {
+      return res.status(200).json({
+        success: true,
+        resultId: existingResult._id,
+        message: "Result already exists",
+      });
+    }
 
-    interview.status      = 'completed';
+    interview.status = 'completed';
     interview.submittedAt = new Date();
     await interview.save();
 
-   
-    let totalScore = 0;
-    let answeredCount = 0;
+    // evaluate each answered question
+//     let totalScore = 0;
+//     let answeredCount = 0;
 
 //     for (const question of interview.questions) {
 //       if (!question.answerText) continue;
@@ -443,50 +426,66 @@ if (existingResult) {
 // }`;
 
 //       const response = await openai.chat.completions.create({
-//         model:    'gpt-4o',
+//         model: 'gpt-4o',
 //         messages: [{ role: 'user', content: prompt }],
 //       });
 
 
 //       await AIUsage.updateOne(
-//   {},
-//   {
-//     $inc: {
-//       totalRequests: 1,
-//       evaluationTokens: response.usage.total_tokens,
-//       resumeTokens: response.usage.total_tokens,
-//       totalTokens: response.usage.total_tokens,
-//     },
-//   }
-// );
+//         {},
+//         {
+//           $inc: {
+//             totalRequests: 1,
+//             evaluationTokens: response.usage.total_tokens,
+//             resumeTokens: response.usage.total_tokens,
+//             totalTokens: response.usage.total_tokens,
+//           },
+//         }
+//       );
 
-//       const evaluation      = JSON.parse(response.choices[0].message.content.trim());
+//       const evaluation = JSON.parse(response.choices[0].message.content.trim());
 //       question.aiEvaluation = evaluation;
-//       totalScore           += evaluation.score;
+//       totalScore += evaluation.score;
 //       answeredCount++;
 //     }
 
-//     interview.status = 'evaluated';
-//     await interview.save();
-//     await InterviewPost.findByIdAndUpdate(
-//   interview.postId,
-//   {
-//     status: "completed"
-//   }
-// );
+// evaluate each answered question (hardcoded)
+let totalScore = 0;
+let answeredCount = 0;
+
+for (const question of interview.questions) {
+  if (!question.answerText) continue;
+
+  const evaluation = {
+    score: 80,
+    relevance: 82,
+    clarity: 78,
+    feedback: "Good answer with room for more technical depth."
+  };
+
+  question.aiEvaluation = evaluation;
+  totalScore += evaluation.score;
+  answeredCount++;
+}
+
+    interview.status = 'evaluated';
+    await interview.save();
+    await InterviewPost.findByIdAndDelete(
+      interview.postId,
+    );
 
 
     const overallScore = answeredCount > 0
       ? Math.round(totalScore / answeredCount)
       : 0;
 
-   
+    // generate summary
 //     const summaryPrompt = `Based on this interview for ${interview.jobRole}:
 // ${JSON.stringify(interview.questions.map(q => ({
-//   question:   q.questionText,
-//   answer:     q.answerText,
-//   evaluation: q.aiEvaluation,
-// })))}
+//       question: q.questionText,
+//       answer: q.answerText,
+//       evaluation: q.aiEvaluation,
+//     })))}
 
 // Return ONLY a valid JSON object, no markdown, no explanation:
 // {
@@ -496,25 +495,25 @@ if (existingResult) {
 // }`;
 
 //     const summaryResponse = await openai.chat.completions.create({
-//       model:    'gpt-4o',
+//       model: 'gpt-4o',
 //       messages: [{ role: 'user', content: summaryPrompt }],
 //     });
-    
-//     console.log("Summary Generation:", summaryResponse.usage);
-    // const summary = JSON.parse(summaryResponse.choices[0].message.content.trim());
 
-//         await AIUsage.updateOne(
-//   {},
-//   {
-//     $inc: {
-//       totalRequests: 1,
-//       totalInterviews: 1,
-//       summaryTokens: summaryResponse.usage.total_tokens,
-//       totalTokens: summaryResponse.usage.total_tokens,
-//     },
-//   }
-// );
- const summary = {
+//     const summary = JSON.parse(summaryResponse.choices[0].message.content.trim());
+
+//     await AIUsage.updateOne(
+//       {},
+//       {
+//         $inc: {
+//           totalRequests: 1,
+//           totalInterviews: 1,
+//           summaryTokens: summaryResponse.usage.total_tokens,
+//           totalTokens: summaryResponse.usage.total_tokens,
+//         },
+//       }
+//     );
+
+const summary = {
   strengths: [
     "Good communication skills",
     "Demonstrates basic technical knowledge"
@@ -525,27 +524,28 @@ if (existingResult) {
   ],
   recommendation: "hire"
 };
+
     const recruiter = await Admin.findById(interview.recruiterId).select("name")
-       
+
     const result = await Result.create({
-      interviewId:  interview._id,
+      interviewId: interview._id,
       recruiter: recruiter.name,
-      recruiterId: Interview.recruiterId,
-      candidateId:  interview.candidateId,
+      recruiterId: interview.recruiterId,
+      candidateId: interview.candidateId,
       overallScore: overallScore,
       summary: {
         totalQuestions: interview.questions.length,
-        averageScore:   overallScore,
+        averageScore: overallScore,
         ...summary,
       },
-      questions : interview.questions,
+      questions: interview.questions,
       evaluatedAt: new Date(),
     });
 
     res.status(200).json({
-      success:  true,
+      success: true,
       resultId: result._id,
-      message:  'Interview submitted and evaluated',
+      message: 'Interview submitted and evaluated',
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -579,6 +579,5 @@ module.exports = {
   saveAnswer,
   interview_violation,
   submitInterview,
-  getResult,
-  uploadRecording
+  getResult
 };

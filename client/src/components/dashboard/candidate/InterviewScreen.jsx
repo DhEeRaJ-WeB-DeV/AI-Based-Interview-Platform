@@ -2,14 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import api from "../../../api/axiosClient";
+import socket from "../../../socket/socketclient";
 import { useTabSwitchGuard } from "../../../hooks/useTabSwitchGuard";
 import { useMediaRecorder } from "./hooks/useMediaRecorder";
-import { useSpeechToText } from "./hooks/useSpeechToText";
-import { useNavigationGuard } from "./hooks/useNavigationGuard";
 import { useSpeechSynthesis } from "./hooks/useTextToSpeech";
+import { useRealtimeAudio } from "./hooks/useRealtimeAudio";
+import { useNavigationGuard } from "./hooks/useNavigationGuard";
 
 const TOTAL_QUESTIONS = 6;
-
+const TIME_PER_QUESTION = 120;
 
 const steps = [
   "Introduction",
@@ -26,50 +27,99 @@ export default function InterviewScreen({ interviewId }) {
   const [question, setQuestion] = useState(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(TIME_PER_QUESTION);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [interviewFinished, setInterviewFinished] = useState(false);
-  const [durationLoaded, setDurationLoaded] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
+  const [backButton,setBackbutton]=useState(false);
 
   const timerRef = useRef(null);
   const videoRef = useRef(null);
+  const mediaStreamRef = useRef(null);
 
- const { startRecording, stopRecording, recording, streamRef } =
-  useMediaRecorder();
+  
+  const liveTranscriptRef = useRef("");
+
+  const questionSeqRef = useRef(0);
 
 const {
-  transcript,
-  listening,
-  startListening,
-  stopListening,
-  resetTranscript,
-} = useSpeechToText();
+    startRecording: startVideoRecording,
+    stopRecording: stopVideoRecording,
+    recording,
+    streamRef,
+} = useMediaRecorder();
+
+const {
+    startStreaming,
+    stopStreaming
+} = useRealtimeAudio();
+
+// socket test
+useEffect(() => {
+
+    socket.connect();
+
+    socket.on("connect", () => {
+
+        console.log("Connected:", socket.id);
+
+        socket.emit("join_interview", {
+            interviewId,
+        });
+
+    });
+
+    socket.on("joined_interview", (data) => {
+
+        console.log("Joined interview:", data.interviewId);
+
+    });
+
+    socket.on("transcript", (data) => {
+
+        console.log("Transcript:", data);
+
+ 
+        if (data.questionSeq !== questionSeqRef.current) {
+            return;
+        }
+
+        liveTranscriptRef.current = data.fullTranscript;
+        setLiveTranscript(data.fullTranscript);
+
+    });
+
+    return () => {
+
+        socket.off("connect");
+        socket.off("joined_interview");
+        socket.off("transcript");
+
+        socket.disconnect();
+
+    };
+
+}, [interviewId]);
+
 
 const { speak, stopSpeaking } = useSpeechSynthesis();
 
 const cleanupSession = useCallback(() => {
   clearInterval(timerRef.current);
 
-<<<<<<< HEAD
-//for candidate to not pressing back button
-useNavigationGuard({
-  enabled: interviewFinished,
-});
-
-//for candidate to not switch the tab
-  useTabSwitchGuard({
-    enabled: true,
-    maxViolations: 3,
-=======
-  stopListening();
   stopSpeaking();
->>>>>>> 3afdaba8346fdf46322af2749a911a811a10960c
+  stopStreaming();
+  setIsRecordingAnswer(false);
 
   if (streamRef.current) {
     streamRef.current.getTracks().forEach((track) => track.stop());
   }
-}, [stopListening, stopSpeaking, streamRef]);
+}, [stopSpeaking, streamRef]);
+
+useNavigationGuard({
+  enabled:backButton,
+})
 
 const handleMalpractice = useCallback(
   (reason) => {
@@ -97,123 +147,28 @@ const fetchQuestion = useCallback(async () => {
       `/interview/${interviewId}/question`
     );
 
-<<<<<<< HEAD
-    try {
-      const res = await api.get(`/interview/${interviewId}/question`);
-      setQuestion(res.data.question);
-      setQuestionIndex((prev) => prev + 1);
-
-      resetTranscript();
-    } catch(err) {
-      toast.error("Failed to load question. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [interviewId, resetTranscript]);
-
-  //to get the duration window
-  const getDuration = useCallback(async () => {
-    try {
-      const res = await api.get("/interview-posts/dashboard");
-      const post = res.data.posts.find(
-  (p) => p.status === "scheduled"
-);
-
-      if (!post) {
-        toast.error("Interview not found");
-        return null;
-      }
-
-      const seconds = post.duration * 60;
-      setTimeLeft(seconds);
-      setDurationLoaded(true);
-      return seconds;
-    } catch (error) {
-      toast.error("Couldn't get interview duration.");
-      return null;
-    }
-  });
-
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const stream = await startRecording();
-
-        if (videoRef.current && stream) {
-          videoRef.current.srcObject = stream;
-        }
-         
-      const seconds = await getDuration();
-       if (!seconds) return;
-        
-        startListening();
-        await fetchQuestion();
-      } catch(err) {
-        console.error(err);
-        toast.error("Camera or microphone could not be started.");
-=======
     setQuestion(res.data.question);
+
+    questionSeqRef.current += 1;
+    socket.emit("start_question");
+    liveTranscriptRef.current = "";
+    setLiveTranscript("");
 
     stopSpeaking();
 
     speak(
-      res.data.question.questionText,
-      () => {
-        startListening();
->>>>>>> 3afdaba8346fdf46322af2749a911a811a10960c
-      }
-    );
+  res.data.question.questionText,
+  async () => {
+
+    setIsRecordingAnswer(true);
+
+    await startStreaming(mediaStreamRef.current);
+  }
+);
 
     setQuestionIndex((prev) => prev + 1);
     setTimeLeft(TIME_PER_QUESTION);
-    resetTranscript();
 
-<<<<<<< HEAD
-    return () => {
-      cleanupSession();
-    };
-  }, []);
-
-
-
-  const uploadRecording = useCallback(
-    async (blob) => {
-      try {
-        const formData = new FormData();
-        formData.append("video", blob, `q${questionIndex}.webm`);
-        const res = await api.post("/interview/upload-recording", formData);
-        return res.data.recordingUrl;
-      } catch {
-        toast.error("Recording upload failed. Saving answer without video.");
-        return null;
-      }
-    },
-    [questionIndex]
-  );
-
-  const saveAnswer = useCallback(
-    async (recordingUrl) => {
-      await api.post(
-        `/interview/${interviewId}/answer`,
-        {
-          questionId: question._id,
-          answerText: transcript,
-          recordingUrl: recordingUrl || "",
-        },
-      );
-    },
-    [interviewId, question, transcript]
-  );
-
-
-  const handleNext = useCallback(async (timeExpired = false)=> {
-    if (submitting || interviewFinished || !question) {
-      return;
-    }
-
-    stopListening();
-    setSubmitting(true);
-=======
   } catch (err) {
     toast.error(
       "Failed to load question. Please try again."
@@ -223,47 +178,36 @@ const fetchQuestion = useCallback(async () => {
   }
 }, [
   interviewId,
-  resetTranscript,
   speak,
   stopSpeaking,
-  startListening,
 ]);
->>>>>>> 3afdaba8346fdf46322af2749a911a811a10960c
 
 useEffect(() => {
   const init = async () => {
     try {
-<<<<<<< HEAD
-      const blob = await stopRecording();
-      const recordingUrl = blob ? await uploadRecording(blob) : null;
-      await saveAnswer(recordingUrl);
+     const stream =
+    await navigator.mediaDevices.getUserMedia({
 
-      if (timeExpired || questionIndex >= TOTAL_QUESTIONS) {
-        await api.post(
-          `/interview/${interviewId}/submit`,
-          {}
-        );
+        video:true,
 
-        setInterviewFinished(true);
-        cleanupSession();
-        setShowSuccessModal(true);
-        return;
-      }
+        audio:true,
 
-=======
->>>>>>> 3afdaba8346fdf46322af2749a911a811a10960c
-      const stream = await startRecording();
+    });
 
-      if (videoRef.current && stream) {
-        videoRef.current.srcObject = stream;
-      }
+mediaStreamRef.current = stream;
 
-      await fetchQuestion();
+await startVideoRecording(stream);
 
-<<<<<<< HEAD
-useEffect(() => {
-    if (!durationLoaded) return;
-=======
+
+
+if(videoRef.current){
+
+    videoRef.current.srcObject = stream;
+
+}
+
+await fetchQuestion();
+
     } catch {
       toast.error(
         "Camera or microphone could not be started."
@@ -277,51 +221,41 @@ useEffect(() => {
     cleanupSession();
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
 }, []);
 
-const uploadRecording = useCallback(
-  async (blob) => {
-    try {
-      const formData = new FormData();
 
-      formData.append(
+const uploadAnswer = useCallback(async (videoBlob, transcriptText) => {
+
+    const formData = new FormData();
+
+    formData.append(
         "video",
-        blob,
+        videoBlob,
         `q${questionIndex}.webm`
-      );
-
-      const res = await api.post(
-        "/interview/upload-recording",
-        formData
-      );
-
-      return res.data.recordingUrl;
-
-    } catch {
-      toast.error(
-        "Recording upload failed. Saving answer without video."
-      );
-
-      return null;
-    }
-  },
-  [questionIndex]
-);
-
-const saveAnswer = useCallback(
-  async (recordingUrl) => {
-    await api.post(
-      `/interview/${interviewId}/answer`,
-      {
-        questionId: question._id,
-        answerText: transcript,
-        recordingUrl: recordingUrl || "",
-      }
     );
-  },
-  [interviewId, question, transcript]
-);
+
+    formData.append(
+        "questionId",
+        question._id
+    );
+
+    formData.append(
+        "transcript",
+        transcriptText || ""
+    );
+
+    await api.post(
+        `/interview/${interviewId}/answer`,
+        formData
+    );
+
+}, [
+    interviewId,
+    question,
+    questionIndex,
+]);
+
 
 const handleNext = useCallback(async () => {
   if (submitting || !question) {
@@ -330,82 +264,91 @@ const handleNext = useCallback(async () => {
 
   clearInterval(timerRef.current);
 
-  stopListening();
   stopSpeaking();
 
   setSubmitting(true);
 
   try {
-    const blob = await stopRecording();
-
-    const recordingUrl = blob
-      ? await uploadRecording(blob)
-      : null;
-
-    await saveAnswer(recordingUrl);
-
+    socket.emit("commit_audio");
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    
+    
+    setIsRecordingAnswer(false);
+    
+    const videoBlob = await stopVideoRecording();
+    
+    
+    await uploadAnswer(
+      videoBlob,
+      liveTranscriptRef.current
+    );
+    
     if (questionIndex >= TOTAL_QUESTIONS) {
       await api.post(
         `/interview/${interviewId}/submit`,
         {}
       );
-
+      
+      setBackbutton(true);
+      
       cleanupSession();
       setShowSuccessModal(true);
       return;
     }
+await stopStreaming();
+await startVideoRecording(
+    mediaStreamRef.current
+);
 
-    const stream = await startRecording();
+if (videoRef.current) {
+  videoRef.current.srcObject = mediaStreamRef.current;
+}
 
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-
-    await fetchQuestion();
+await fetchQuestion();
 
   } catch (err) {
-    toast.error(
+    toast.error( err.message||
       "Something went wrong. Please try again."
     );
-  } finally {
+  } 
+  finally {
     setSubmitting(false);
   }
-}, [
+},[
   cleanupSession,
   fetchQuestion,
   interviewId,
   question,
   questionIndex,
-  saveAnswer,
-  startRecording,
-  stopListening,
+  startVideoRecording,
+  stopVideoRecording,
   stopSpeaking,
-  stopRecording,
   submitting,
-  uploadRecording,
+  uploadAnswer,
 ]);
+
+
   useEffect(() => {
     if (!question) {
       return undefined;
     }
 
     clearInterval(timerRef.current);
->>>>>>> 3afdaba8346fdf46322af2749a911a811a10960c
 
     timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-            if (prev <= 1) {
-                clearInterval(timerRef.current);
-                handleNext(true); // auto submit
-                return 0;
-            }
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timerRef.current);
+          handleNext();
+          return 0;
+        }
 
-            return prev - 1;
-        });
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(timerRef.current);
-}, [durationLoaded, handleNext]);
+  }, [handleNext, question]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
@@ -469,23 +412,23 @@ const handleNext = useCallback(async () => {
             </div>
 
             <div className="min-h-[120px] flex-1 text-sm leading-relaxed text-slate-300">
-              {transcript || (
+              {liveTranscript || (
                 <span className="text-slate-600">
                   Start speaking. Your answer will appear here.
                 </span>
               )}
-              {listening && (
+              {isRecordingAnswer && (
                 <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-white align-middle" />
               )}
             </div>
 
             <div className="flex flex-col gap-3 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-slate-500">
-                {listening ? "Listening..." : "Mic off"}
+                {isRecordingAnswer ? "Listening..." : "Mic off"}
               </div>
               <button
                 type="button"
-                onClick={() => handleNext()}
+                onClick={handleNext}
                 disabled={loading || submitting}
                 className="h-10 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
@@ -500,27 +443,6 @@ const handleNext = useCallback(async () => {
         </div>
 
         <aside className="flex flex-col gap-4">
-          <section className="relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="h-full w-full object-cover"
-            />
-            {recording && (
-              <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                <span className="text-xs font-medium text-red-300">REC</span>
-              </div>
-            )}
-            {!recording && (
-              <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-600">
-                Camera initializing...
-              </div>
-            )}
-          </section>
-
           <section className="flex-1 rounded-lg border border-slate-800 bg-slate-900 p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Progress

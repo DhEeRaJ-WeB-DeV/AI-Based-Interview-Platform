@@ -6,15 +6,12 @@ export const useMediaRecorder = () => {
   const streamRef        = useRef(null);
   const [recording, setRecording] = useState(false);
 
-  const startRecording = async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: true,
-    });
-    streamRef.current  = stream;
-    chunksRef.current  = [];
+const startRecording = (stream) => {
 
-    const recorder = new MediaRecorder(stream);
+  streamRef.current = stream;
+  chunksRef.current = [];
+
+  const recorder = new MediaRecorder(stream);
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
@@ -22,7 +19,6 @@ export const useMediaRecorder = () => {
     mediaRecorderRef.current = recorder;
     recorder.start();
     setRecording(true);
-    return stream;
   };
 
   const stopRecording = () => {
@@ -32,7 +28,6 @@ export const useMediaRecorder = () => {
 
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "video/webm" });
-        streamRef.current?.getTracks().forEach((t) => t.stop());
         setRecording(false);
         resolve(blob);
       };

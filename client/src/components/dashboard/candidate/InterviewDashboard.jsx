@@ -60,31 +60,26 @@ const TimeLeft = ({ startTime, endTime }) => {
 };
 
 const CandidateDashboard = ({ onAttend }) => {
-const fetchPosts = useCallback(async () => {
-  const { data } = await api.get("/interview-posts/dashboard");
-  const allPosts = data.posts || [];
-  return allPosts.filter((post) => post.status === "scheduled");
-}, []);
-
-   const isChromeBrowser = () => {
-  if (navigator.userAgentData) {
-    return navigator.userAgentData.brands.some(
-      (brand) => brand.brand === "Google Chrome"
-    );
-  }
-
-  return (
-    /Chrome/.test(navigator.userAgent) &&
-    /Google Inc/.test(navigator.vendor) &&
-    !/Edg/.test(navigator.userAgent) &&
-    !/OPR/.test(navigator.userAgent)
-  );
-};
-
   const fetchPosts = useCallback(async () => {
     const { data } = await api.get("/interview-posts/dashboard");
-    return data.posts || [];
+    const allPosts = data.posts || [];
+    return allPosts.filter((post) => post.status === "scheduled");
   }, []);
+
+  const isChromeBrowser = () => {
+    if (navigator.userAgentData) {
+      return navigator.userAgentData.brands.some(
+        (brand) => brand.brand === "Google Chrome"
+      );
+    }
+
+    return (
+      /Chrome/.test(navigator.userAgent) &&
+      /Google Inc/.test(navigator.vendor) &&
+      !/Edg/.test(navigator.userAgent) &&
+      !/OPR/.test(navigator.userAgent)
+    );
+  };
 
   const getDashboardError = useCallback((err) => {
     const msg =
@@ -159,151 +154,105 @@ const fetchPosts = useCallback(async () => {
         </div>
       ) : (
         <div className="grid gap-4">
-  {posts.map((post) => {
-    const now = new Date();
-    const start = new Date(post.startTime);
-    const end = new Date(post.endTime);
+          {posts.map((post) => {
+            const now = new Date();
+            const start = new Date(post.startTime);
+            const end = new Date(post.endTime);
 
-    const hasStarted = now >= start;
-    const hasExpired = now > end;
+            const hasStarted = now >= start;
+            const hasExpired = now > end;
 
-    return (
-      <article
-        key={post._id}
-        className="rounded-lg border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/10"
-      >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h3 className="text-lg font-semibold">{post.role}</h3>
+            return (
+              <article
+                key={post._id}
+                className="rounded-lg border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/10"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-semibold">{post.role}</h3>
 
-              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
-                {post.roundName}
-              </span>
-            </div>
-
-            <div className="mb-3 flex flex-wrap gap-2">
-              {post.skills?.map((skill) => (
-                <span
-                  key={skill}
-                  className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-200"
-          {posts.map((post) => (
-            <article
-              key={post._id}
-              className="rounded-lg border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/10"
-            >
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold">{post.role}</h3>
-                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
-                      {post.roundName}
-                    </span>
-                  </div>
-
-                  <div className="mb-3 flex flex-wrap gap-2">
-                    {post.skills?.map((skill) => (
-                      <span
-                        key={skill}
-                        className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-200"
-                      >
-                        {skill}
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+                        {post.roundName}
                       </span>
-                    ))}
+                    </div>
+
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {post.skills?.map((skill) => (
+                        <span
+                          key={skill}
+                          className="rounded-full bg-emerald-950 px-2 py-0.5 text-xs text-emerald-200"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mb-2 flex flex-wrap gap-3 text-sm text-slate-400">
+                      <span>
+                        {post.candidateType === "fresher"
+                          ? "Fresher"
+                          : `${post.minExperience}-${post.maxExperience} yrs`}
+                      </span>
+
+                      {post.difficulty && <span>{post.difficulty}</span>}
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-xs text-slate-400">
+                        Starts:{" "}
+                        {new Date(post.startTime).toLocaleString([], {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })}
+                      </p>
+
+                      <TimeLeft
+                        startTime={post.startTime}
+                        endTime={post.endTime}
+                      />
+                    </div>
                   </div>
 
-                  <div className="mb-2 flex flex-wrap gap-3 text-sm text-slate-400">
-                    <span>
-                      {post.candidateType === "fresher"
-                        ? "Fresher"
-                        : `${post.minExperience}-${post.maxExperience} yrs`}
-                    </span>
-                    {post.difficulty && <span>{post.difficulty}</span>}
-                  </div>
-
-                  <TimeLeft expiresAt={post.expiresAt} />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if(isChromeBrowser()){
-                      onAttend(post)
-                    }
-                      else{
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isChromeBrowser()) {
                         alert("Your browser does not support the required interview features. Please use Google Chrome.");
+                        return;
                       }
-                    }
-                    }
-                    className="h-11 shrink-0 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500"
-                >
-                  {skill}
-                </span>
-              ))}
-            </div>
+                      if (!hasStarted) {
+                        toast("Your interview hasn't started yet.", {
+                          icon: "⏰",
+                        });
+                        return;
+                      }
 
-            <div className="mb-2 flex flex-wrap gap-3 text-sm text-slate-400">
-              <span>
-                {post.candidateType === "fresher"
-                  ? "Fresher"
-                  : `${post.minExperience}-${post.maxExperience} yrs`}
-              </span>
+                      if (hasExpired) {
+                        toast.error("This interview window has expired.");
+                        return;
+                      }
 
-              {post.difficulty && <span>{post.difficulty}</span>}
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-slate-400">
-                Starts:{" "}
-                {new Date(post.startTime).toLocaleString([], {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-              </p>
-
-              <TimeLeft
-                startTime={post.startTime}
-                endTime={post.endTime}
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (!hasStarted) {
-                toast("Your interview hasn't started yet.", {
-                  icon: "⏰",
-                });
-                return;
-              }
-
-              if (hasExpired) {
-                toast.error("This interview window has expired.");
-                return;
-              }
-
-              onAttend(post);
-            }}
-            className={`h-11 shrink-0 rounded-md px-5 text-sm font-semibold text-white transition-colors cursor-pointer ${
-              hasExpired
-                ? "bg-red-600 hover:bg-red-500"
-                : hasStarted
-                ? "bg-emerald-600 hover:bg-emerald-500"
-                : "bg-slate-700 hover:bg-slate-600"
-            }`}
-          >
-            {hasExpired
-              ? "Expired"
-              : hasStarted
-              ? "Start Interview"
-              : "Not Started"}
-          </button>
+                      onAttend(post);
+                    }}
+                    className={`h-11 shrink-0 rounded-md px-5 text-sm font-semibold text-white transition-colors cursor-pointer ${hasExpired
+                        ? "bg-red-600 hover:bg-red-500"
+                        : hasStarted
+                          ? "bg-emerald-600 hover:bg-emerald-500"
+                          : "bg-slate-700 hover:bg-slate-600"
+                      }`}
+                  >
+                    {hasExpired
+                      ? "Expired"
+                      : hasStarted
+                        ? "Start Interview"
+                        : "Not Started"}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
-      </article>
-    );
-  })}
-</div>
       )}
     </div>
   );
