@@ -8,7 +8,6 @@ import { useMediaRecorder } from "./hooks/useMediaRecorder";
 import { useSpeechSynthesis } from "./hooks/useTextToSpeech";
 import { useRealtimeAudio } from "./hooks/useRealtimeAudio";
 const TOTAL_QUESTIONS = 6;
-const TIME_PER_QUESTION = 120;
 
 const steps = [
   "Introduction",
@@ -25,19 +24,17 @@ export default function InterviewScreen({ interviewId }) {
   const [question, setQuestion] = useState(null);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(TIME_PER_QUESTION);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
 
-  const timerRef = useRef(null);
+
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const isFetchingQuestionRef = useRef(false);
 
-  // debugging purpose
-  const ans_countref = useRef(0);
+
   // Always holds the latest transcript synchronously, so handleNext can
   // read it without waiting on a React re-render and without needing
   // liveTranscript in its dependency array (which would redefine the
@@ -114,7 +111,6 @@ export default function InterviewScreen({ interviewId }) {
   const { speak, stopSpeaking } = useSpeechSynthesis();
 
   const cleanupSession = useCallback(() => {
-    clearInterval(timerRef.current);
 
     stopSpeaking();
     stopStreaming();
@@ -189,7 +185,6 @@ export default function InterviewScreen({ interviewId }) {
     setQuestion(res.data.question);
 
     questionSeqRef.current += 1;
-    console.log("question no:", questionSeqRef.current)
     socket.emit("start_question");
 
     liveTranscriptRef.current = "";
@@ -210,7 +205,6 @@ export default function InterviewScreen({ interviewId }) {
 
     setQuestionIndex((prev) => prev + 1);
 
-    setTimeLeft(TIME_PER_QUESTION);
 
   } catch (err) {
 
@@ -299,8 +293,6 @@ export default function InterviewScreen({ interviewId }) {
       formData
     );
 
-    ans_countref.current +=1
-    console.log("ans no:", ans_countref.current)
   }, [
     interviewId,
     question,
@@ -312,8 +304,6 @@ export default function InterviewScreen({ interviewId }) {
     if (submitting || !question) {
       return;
     }
-
-    clearInterval(timerRef.current);
 
     stopSpeaking();
 
@@ -366,7 +356,6 @@ export default function InterviewScreen({ interviewId }) {
         videoRef.current.srcObject = mediaStreamRef.current;
       }
 
-      //  await uploadPromise,
       await fetchQuestion()
 
     } catch (err) {
@@ -390,39 +379,8 @@ export default function InterviewScreen({ interviewId }) {
     uploadAnswer,
   ]);
 
-  
-  useEffect(() => {
-    if (!question) {
-      return undefined;
-    }
-
-    clearInterval(timerRef.current);
-
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          handleNext();
-          return 0;
-        }
-
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timerRef.current);
-  }, [handleNext, question]);
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60)
-      .toString()
-      .padStart(2, "0");
-    const secs = (seconds % 60).toString().padStart(2, "0");
-    return `${mins}:${secs}`;
-  };
 
   const isLastQuestion = questionIndex >= TOTAL_QUESTIONS;
-  const isLowTime = timeLeft <= 30;
 
   return (
     <div className="min-h-screen bg-[#0a0f1d] p-4 text-white sm:p-6">
@@ -434,18 +392,6 @@ export default function InterviewScreen({ interviewId }) {
           <span className="text-sm text-slate-400">
             Question {questionIndex} of {TOTAL_QUESTIONS}
           </span>
-        </div>
-        <div
-          className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${isLowTime
-            ? "bg-red-950 text-red-200"
-            : "bg-amber-950 text-amber-200"
-            }`}
-        >
-          <span
-            className={`h-2 w-2 rounded-full ${isLowTime ? "bg-red-400" : "bg-amber-400"
-              }`}
-          />
-          {formatTime(timeLeft)} remaining
         </div>
       </div>
 
@@ -585,9 +531,6 @@ export default function InterviewScreen({ interviewId }) {
               onClick={() => {
                 cleanupSession()
                 navigate("/dashboard", { replace: true })
-                // setTimeout(() => {
-                //   window.location.reload()
-                // }, 2000);
               }}
               className="rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500 cursor-pointer"
             >
