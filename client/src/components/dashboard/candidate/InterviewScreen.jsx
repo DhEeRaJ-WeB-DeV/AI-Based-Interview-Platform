@@ -28,6 +28,8 @@ export default function InterviewScreen({ interviewId }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
+  const [showWarningModal, setShowWarningModal] = useState(false);
+const [showTabSwitchModal, setShowTabSwitchModal] = useState(false);
 
 
   const videoRef = useRef(null);
@@ -106,6 +108,33 @@ export default function InterviewScreen({ interviewId }) {
     };
 
   }, [interviewId]);
+
+// tabswitch
+useTabSwitchGuard({
+  enabled: true,
+  maxViolations: 2,
+
+  onWarning: () => {
+    setShowWarningModal(true);
+  },
+
+  onViolation: async () => {
+    cleanupSession();
+    setShowWarningModal(false);
+    setShowTabSwitchModal(true);
+
+    try {
+      await api.post(
+        `/interview/interview-violation`,
+        {
+          isviolated: true,
+        }
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  },
+});
 
 
   const { speak, stopSpeaking } = useSpeechSynthesis();
@@ -539,6 +568,48 @@ export default function InterviewScreen({ interviewId }) {
           </div>
         </div>
       )}
+
+ {showWarningModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+    <div className="w-full max-w-md rounded-lg border border-amber-700 bg-slate-900 p-8 text-center">
+      <h2 className="mb-3 text-2xl font-bold text-amber-400">
+        Tab switch detected
+      </h2>
+      <p className="mb-6 text-slate-300">
+        Switching tabs again will end your interview immediately.
+      </p>
+      <button
+        type="button"
+        onClick={() => setShowWarningModal(false)}
+        className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500 cursor-pointer"
+      >
+        Continue interview
+      </button>
+    </div>
+  </div>
+)}
+
+      {showTabSwitchModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+    <div className="w-full max-w-md rounded-lg border border-red-900 bg-slate-900 p-8 text-center">
+      <h2 className="mb-3 text-2xl font-bold text-red-400">
+        Interview cancelled
+      </h2>
+      <p className="mb-6 text-slate-300">
+        You switched away from this tab. For fairness to all candidates,
+        the interview session ends immediately when that happens.
+      </p>
+      <button
+        type="button"
+        onClick={() => navigate("/dashboard", { replace: true, state: { malpractice: true } })}
+        className="rounded-md bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-500 cursor-pointer"
+      >
+        Return to dashboard
+      </button>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

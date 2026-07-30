@@ -62,15 +62,6 @@ const allUploaded =
         q => q.uploadStatus === "uploaded"
     );
 
-    console.log("Status:", interview.status);
-console.log(
-  interview.questions.map(q => ({
-    order: q.orderIndex,
-    uploadStatus: q.uploadStatus,
-  }))
-);
-
-console.log("alluploaded:", allUploaded)
 
     if (
       allUploaded &&
