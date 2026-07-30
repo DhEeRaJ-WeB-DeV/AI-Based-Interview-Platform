@@ -1,4 +1,6 @@
 require("dotenv").config();
+require("./upload-pipeline/workers/upload.worker");
+require("./upload-pipeline/workers/finalize.worker");
 const express = require("express");
 const cors = require("cors");
 const http = require("http");

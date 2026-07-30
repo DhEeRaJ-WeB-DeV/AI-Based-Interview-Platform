@@ -6,7 +6,8 @@ const cloudinary = require("../config/cloudinary")
 const fs = require("fs")
 const AIUsage = require("../models/AIUsage");
 const Admin = require("../models/Admin")
-const {createMailTransporter} = require("../controllers/authController");
+const { createMailTransporter } = require("../controllers/authController");
+const  uploadQueue  = require("../../upload-pipeline/queues/upload.queue")
 const User = require('../models/User');
 const OpenAI = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -25,157 +26,157 @@ const startInterview = async (req, res) => {
       return res.status(404).json({ message: 'Candidate not found' });
     }
 
-  if (
-  !user.skills?.length ||
-  !user.education?.length ||
-  !user.experience?.length ||
-  !user.projects?.length
-) {
-  return res.status(400).json({
-    message: "Please upload your resume before attending the interview"
-  });
-}
-  //created this helper functions to format education for the prompt
-//     function formatEducation(education = []) {
-//       if (!education.length) return "Not provided";
+    if (
+      !user.skills?.length ||
+      !user.education?.length ||
+      !user.experience?.length ||
+      !user.projects?.length
+    ) {
+      return res.status(400).json({
+        message: "Please upload your resume before attending the interview"
+      });
+    }
+    //created this helper functions to format education for the prompt
+    //     function formatEducation(education = []) {
+    //       if (!education.length) return "Not provided";
 
-//       return education
-//         .map(
-//           (edu) => `
-//     - ${edu.degree}
-//       Institution: ${edu.institution}
-//       Duration: ${edu.years}
-//       GPA: ${edu.gpa}
-//       Location: ${edu.location}`
-//         )
-//         .join("\n");
-//     }
-// //created this helper functions to format experience for the prompt
-//     function formatExperience(experience = []) {
-//       if (!experience.length) return "Fresher";
+    //       return education
+    //         .map(
+    //           (edu) => `
+    //     - ${edu.degree}
+    //       Institution: ${edu.institution}
+    //       Duration: ${edu.years}
+    //       GPA: ${edu.gpa}
+    //       Location: ${edu.location}`
+    //         )
+    //         .join("\n");
+    //     }
+    // //created this helper functions to format experience for the prompt
+    //     function formatExperience(experience = []) {
+    //       if (!experience.length) return "Fresher";
 
-//       return experience
-//         .map(
-//           (exp) => `
-//     - ${exp.designation} at ${exp.company}
-//       Duration: ${exp.dates}
-//       Responsibilities:
-//       ${exp.description?.map((d) => `• ${d}`).join("\n  ") || "Not provided"}`
-//         )
-//         .join("\n");
-//     }
-// //created this helper functions to format projects for the prompt 
-//     function formatProjects(projects = []) {
-//       if (!projects.length) return "No projects provided";
+    //       return experience
+    //         .map(
+    //           (exp) => `
+    //     - ${exp.designation} at ${exp.company}
+    //       Duration: ${exp.dates}
+    //       Responsibilities:
+    //       ${exp.description?.map((d) => `• ${d}`).join("\n  ") || "Not provided"}`
+    //         )
+    //         .join("\n");
+    //     }
+    // //created this helper functions to format projects for the prompt 
+    //     function formatProjects(projects = []) {
+    //       if (!projects.length) return "No projects provided";
 
-//       return projects
-//         .map(
-//           (project) => `
-//     - ${project.title}
-//       Technologies: ${project.technologies?.join(", ") || "Not specified"}
-//       Description: ${project.description}`
-//         )
-//         .join("\n");
-//     }
+    //       return projects
+    //         .map(
+    //           (project) => `
+    //     - ${project.title}
+    //       Technologies: ${project.technologies?.join(", ") || "Not specified"}
+    //       Description: ${project.description}`
+    //         )
+    //         .join("\n");
+    //     }
 
-//     // generate all questions at once based on the job requirements and candidate profile
-//     const prompt = `
-//   You are an experienced technical interviewer conducting a ${difficulty} level interview for the role of ${jobRole}.
+    //     // generate all questions at once based on the job requirements and candidate profile
+    //     const prompt = `
+    //   You are an experienced technical interviewer conducting a ${difficulty} level interview for the role of ${jobRole}.
 
-//   ========================
-//   JOB REQUIREMENTS
-//   ========================
+    //   ========================
+    //   JOB REQUIREMENTS
+    //   ========================
 
-//   Role:
-//   ${jobRole}
+    //   Role:
+    //   ${jobRole}
 
-//   Job Description:
-//   ${jobDescription}
+    //   Job Description:
+    //   ${jobDescription}
 
-//   Required Skills:
-//   ${skills.join(", ")}
+    //   Required Skills:
+    //   ${skills.join(", ")}
 
-//   ========================
-//   CANDIDATE PROFILE
-//   ========================
+    //   ========================
+    //   CANDIDATE PROFILE
+    //   ========================
 
-//   Name:
-//   ${user.name}
+    //   Name:
+    //   ${user.name}
 
-//   Current Role:
-//   ${user.role || "Not provided"}
+    //   Current Role:
+    //   ${user.role || "Not provided"}
 
-//   Skills:
-//   ${user.skills?.length ? user.skills.join(", ") : "Not provided"}
+    //   Skills:
+    //   ${user.skills?.length ? user.skills.join(", ") : "Not provided"}
 
-//   Education:
-//   ${formatEducation(user.education)}
+    //   Education:
+    //   ${formatEducation(user.education)}
 
-//   Experience:
-//   ${formatExperience(user.experience)}
+    //   Experience:
+    //   ${formatExperience(user.experience)}
 
-//   Projects:
-//   ${formatProjects(user.projects)}
+    //   Projects:
+    //   ${formatProjects(user.projects)}
 
-//   ========================
-//   YOUR TASK
-//   ========================
+    //   ========================
+    //   YOUR TASK
+    //   ========================
 
-//   Generate exactly ${numberOfQuestions} interview questions that evaluate how well the candidate fits this role by considering BOTH:
+    //   Generate exactly ${numberOfQuestions} interview questions that evaluate how well the candidate fits this role by considering BOTH:
 
-//   1. The job requirements.
-//   2. The candidate's profile.
+    //   1. The job requirements.
+    //   2. The candidate's profile.
 
-//   Interview Rules:
+    //   Interview Rules:
 
-//   1. Question 1 MUST always be:
-//     "Tell me about yourself."
+    //   1. Question 1 MUST always be:
+    //     "Tell me about yourself."
 
-//   2. Questions 2-4 MUST be technical.
-//     - Base them on BOTH the job requirements and the candidate's profile.
-//     - Prioritize skills that appear in both the required skills and the candidate's skills.
-//     - If the candidate has relevant projects, ask project-specific technical questions about:
-//       • architecture
-//       • implementation
-//       • design decisions
-//       • debugging
-//       • optimization
-//       • scalability
-//       • security
-//       • testing
-//       • deployment
-//       • trade-offs
-//     - If the candidate has relevant work experience, ask questions related to technologies, responsibilities, and challenges from that experience.
-//     - If an important required skill is NOT present in the candidate's profile, ask a conceptual question to evaluate their understanding.
-//     - Match the complexity of the questions to the selected difficulty level (${difficulty}).
+    //   2. Questions 2-4 MUST be technical.
+    //     - Base them on BOTH the job requirements and the candidate's profile.
+    //     - Prioritize skills that appear in both the required skills and the candidate's skills.
+    //     - If the candidate has relevant projects, ask project-specific technical questions about:
+    //       • architecture
+    //       • implementation
+    //       • design decisions
+    //       • debugging
+    //       • optimization
+    //       • scalability
+    //       • security
+    //       • testing
+    //       • deployment
+    //       • trade-offs
+    //     - If the candidate has relevant work experience, ask questions related to technologies, responsibilities, and challenges from that experience.
+    //     - If an important required skill is NOT present in the candidate's profile, ask a conceptual question to evaluate their understanding.
+    //     - Match the complexity of the questions to the selected difficulty level (${difficulty}).
 
-//   3. Question 5 MUST be behavioral or situational.
-//     - If the candidate has work experience, base the question on realistic workplace situations.
-//     - If the candidate is a fresher, ask a project-based or hypothetical scenario relevant to the role.
+    //   3. Question 5 MUST be behavioral or situational.
+    //     - If the candidate has work experience, base the question on realistic workplace situations.
+    //     - If the candidate is a fresher, ask a project-based or hypothetical scenario relevant to the role.
 
-//   4. Question 6 MUST always be:
-//     "Do you have any questions for us?"
+    //   4. Question 6 MUST always be:
+    //     "Do you have any questions for us?"
 
-//   Additional Rules:
+    //   Additional Rules:
 
-//   - Personalize questions whenever possible.
-//   - Do NOT ask the candidate to simply list their skills, explain their resume, or repeat information already available in the candidate profile.
-//   - Avoid generic questions when the candidate's projects or experience provide enough context for deeper technical questions.
-//   - Do NOT repeat any question.
-//   - Keep questions clear, concise, and interview-appropriate.
-//   - Ensure every question is unique.
-//   - Return EXACTLY ${numberOfQuestions} questions.
-    
-//     // Return ONLY a valid JSON array of 6 objects, nothing else. No markdown, no explanation.
-//     // Format:
-//     // [
-//     //   { "questionText": "...", "category": "introduction", "difficulty": "easy" },
-//     //   { "questionText": "...", "category": "technical", "difficulty": "medium" },
-//     //   { "questionText": "...", "category": "technical", "difficulty": "medium" },
-//     //   { "questionText": "...", "category": "technical", "difficulty": "hard" },
-//     //   { "questionText": "...", "category": "behavioral", "difficulty": "medium" },
-//     //   { "questionText": "...", "category": "wrap-up", "difficulty": "easy" }
-//     //   ]`;
+    //   - Personalize questions whenever possible.
+    //   - Do NOT ask the candidate to simply list their skills, explain their resume, or repeat information already available in the candidate profile.
+    //   - Avoid generic questions when the candidate's projects or experience provide enough context for deeper technical questions.
+    //   - Do NOT repeat any question.
+    //   - Keep questions clear, concise, and interview-appropriate.
+    //   - Ensure every question is unique.
+    //   - Return EXACTLY ${numberOfQuestions} questions.
+
+    //     // Return ONLY a valid JSON array of 6 objects, nothing else. No markdown, no explanation.
+    //     // Format:
+    //     // [
+    //     //   { "questionText": "...", "category": "introduction", "difficulty": "easy" },
+    //     //   { "questionText": "...", "category": "technical", "difficulty": "medium" },
+    //     //   { "questionText": "...", "category": "technical", "difficulty": "medium" },
+    //     //   { "questionText": "...", "category": "technical", "difficulty": "hard" },
+    //     //   { "questionText": "...", "category": "behavioral", "difficulty": "medium" },
+    //     //   { "questionText": "...", "category": "wrap-up", "difficulty": "easy" }
+    //     //   ]`;
 
     // const response = await openai.chat.completions.create({
     //   model: 'gpt-4o',
@@ -207,44 +208,44 @@ const startInterview = async (req, res) => {
     //   orderIndex: i + 1,
     // }));
 
-     const questions = [
-    {
-      questionText: "Tell me about yourself.",
-      category: "introduction",
-      difficulty: "easy",
-      orderIndex: 1,
-    },
-    {
-      questionText: "Explain the difference between var, let, and const in JavaScript.",
-      category: "technical",
-      difficulty: "medium",
-      orderIndex: 2,
-    },
-    {
-      questionText: "What is React's Virtual DOM and why is it used?",
-      category: "technical",
-      difficulty: "medium",
-      orderIndex: 3,
-    },
-    {
-      questionText: "How would you optimize the performance of a MERN stack application?",
-      category: "technical",
-      difficulty: "hard",
-      orderIndex: 4,
-    },
-    {
-      questionText: "Describe a challenging situation you faced while working on a project and how you handled it.",
-      category: "behavioral",
-      difficulty: "medium",
-      orderIndex: 5,
-    },
-    {
-      questionText: "Do you have any questions for us?",
-      category: "wrap-up",
-      difficulty: "easy",
-      orderIndex: 6,
-    },
-  ];
+    const questions = [
+      {
+        questionText: "Tell me about yourself.",
+        category: "introduction",
+        difficulty: "easy",
+        orderIndex: 1,
+      },
+      {
+        questionText: "Explain the difference between var, let, and const in JavaScript.",
+        category: "technical",
+        difficulty: "medium",
+        orderIndex: 2,
+      },
+      {
+        questionText: "What is React's Virtual DOM and why is it used?",
+        category: "technical",
+        difficulty: "medium",
+        orderIndex: 3,
+      },
+      {
+        questionText: "How would you optimize the performance of a MERN stack application?",
+        category: "technical",
+        difficulty: "hard",
+        orderIndex: 4,
+      },
+      {
+        questionText: "Describe a challenging situation you faced while working on a project and how you handled it.",
+        category: "behavioral",
+        difficulty: "medium",
+        orderIndex: 5,
+      },
+      {
+        questionText: "Do you have any questions for us?",
+        category: "wrap-up",
+        difficulty: "easy",
+        orderIndex: 6,
+      },
+    ];
     const post = await InterviewPost.findById(postId)
     const recruiterId = post.postedBy
     const interview = await Interview.create({
@@ -255,7 +256,7 @@ const startInterview = async (req, res) => {
       jobDescription,
       skills,
       difficulty,
-      status: 'in_progress',
+      status: 'processing',
       startedAt: new Date(),
       questions,
     });
@@ -290,7 +291,7 @@ const getNextQuestion = async (req, res) => {
       });
     }
     console.log("next question:", nextQuestion.questionText)
-     res.status(200).json({
+    res.status(200).json({
       success: true,
       question: {
         _id: nextQuestion._id,
@@ -301,54 +302,13 @@ const getNextQuestion = async (req, res) => {
       },
       totalQuestions: interview.questions.length,
     });
-  } 
+  }
   catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
 
 
-
-
-// const saveAnswer = async (req, res) => {
-//   try {
-//     const { questionId, transcript } = req.body;
-
-//     const videoFile = req.files.video[0];
-
-//     const result = await cloudinary.uploader.upload(videoFile.path, {
-//       resource_type: "video",
-//       folder: "interview-recordings",
-//     });
-
-//     const interview = await Interview.findById(req.params.id);
-//     if (!interview) return res.status(404).json({ message: 'Interview not found' });
-
-//     const question = interview.questions.id(questionId);
-//     if (!question) return res.status(404).json({ message: 'Question not found' });
-
-//     question.answerText = transcript || "";
-//     question.recordingUrl = result.secure_url;
-//     question.answeredAt = new Date();
-
-//     fs.unlink(videoFile.path, () => {});
-
-//     await interview.save();
-
-//     res.json({
-//       message: "answer saved",
-//       success: true,
-//       transcript,
-//     });
-//   } catch (err) {
-//     console.log(err.message);
-
-//     res.status(500).json({
-//       success: false,
-//       message: err.message,
-//     });
-//   }
-// };
 
 
 
@@ -372,16 +332,28 @@ const saveAnswer = async (req, res) => {
         message: "Question not found",
       });
 
-    question.answerText = transcript || "";
-    question.answeredAt = new Date();
+    question.answerText = transcript;
 
-    // Store local file path
     question.localRecordingPath = videoFile.path;
 
-    // Cloudinary upload will happen later
-    question.recordingUrl = "";
+    question.uploadStatus = "pending";
+
+    question.uploadAttempts = 0;
+
+    question.answeredAt = new Date();
 
     await interview.save();
+
+    await uploadQueue.add(
+      "upload-video",
+      {
+        interviewId: interview._id,
+        questionId: question._id,
+      },
+      {
+        jobId: `${interview._id}-${question._id}`,
+      }
+    );
 
     return res.json({
       success: true,
@@ -608,195 +580,257 @@ const interview_violation = async (req, res) => {
 
 
 
+// const submitInterview = async (req, res) => {
+//   try {
+
+//     const interview = await Interview.findById(req.params.id);
+
+//     if (!interview) {
+//       return res.status(404).json({
+//         message: "Interview not found",
+//       });
+//     }
+
+//     const existingResult = await Result.findOne({
+//       interviewId: interview._id,
+//     });
+
+//     if (existingResult) {
+//       return res.status(200).json({
+//         success: true,
+//         resultId: existingResult._id,
+//         message: "Result already exists",
+//       });
+//     }
+
+//     interview.status = "processing";
+//     interview.submittedAt = new Date();
+
+//     await interview.save();
+
+//     // Respond immediately
+//     res.status(200).json({
+//       success: true,
+//       message: "Interview submitted successfully.",
+//     });
+
+//     // ===============================
+//     // Everything below runs in background
+//     // ===============================
+
+//     try {
+
+//       // -------------------------------
+//       // Upload all videos
+//       // -------------------------------
+
+//       // for (const question of interview.questions) {
+
+//       //   if (!question.localRecordingPath) continue;
+
+//       //   const upload = await cloudinary.uploader.upload(
+//       //     question.localRecordingPath,
+//       //     {
+//       //       resource_type: "video",
+//       //       folder: "interview-recordings",
+//       //     }
+//       //   );
+
+//       //   question.recordingUrl = upload.secure_url;
+
+//       //   await fs.unlink(question.localRecordingPath, () => { });
+
+//       //   question.localRecordingPath = null;
+//       // }
+
+//       // await interview.save();
+
+//       // -------------------------------
+//       // Evaluate every answer
+//       // -------------------------------
+
+//       let totalScore = 0;
+//       let answeredCount = 0;
+
+//       for (const question of interview.questions) {
+
+//         if (!question.answerText) continue;
+
+//         // Replace this with OpenAI later
+//         const evaluation = {
+//           score: 80,
+//           relevance: 82,
+//           clarity: 78,
+//           feedback:
+//             "Good answer with room for more technical depth.",
+//         };
+
+//         question.aiEvaluation = evaluation;
+
+//         totalScore += evaluation.score;
+//         answeredCount++;
+
+//       }
+
+//       const overallScore =
+//         answeredCount > 0
+//           ? Math.round(totalScore / answeredCount)
+//           : 0;
+
+//       await interview.save();
+
+//       // -------------------------------
+//       // Generate Summary
+//       // -------------------------------
+
+//       const summary = {
+//         strengths: [
+//           "Good communication skills",
+//           "Demonstrates basic technical knowledge",
+//         ],
+//         weaknesses: [
+//           "Needs deeper understanding of advanced concepts",
+//           "Could provide more structured answers",
+//         ],
+//         recommendation: "hire",
+//       };
+
+//       // -------------------------------
+//       // Recruiter
+//       // -------------------------------
+
+//       const recruiter = await Admin.findById(
+//         interview.recruiterId
+//       ).select("name");
+
+//       // -------------------------------
+//       // Create Result
+//       // -------------------------------
+
+//       await Result.create({
+
+//         interviewId: interview._id,
+
+//         recruiter: recruiter.name,
+
+//         recruiterId: interview.recruiterId,
+
+//         candidateId: interview.candidateId,
+
+//         overallScore,
+
+//         summary: {
+
+//           totalQuestions: interview.questions.length,
+
+//           averageScore: overallScore,
+
+//           ...summary,
+
+//         },
+
+//         questions: interview.questions,
+
+//         evaluatedAt: new Date(),
+
+//       });
+
+//       // -------------------------------
+//       // Cleanup
+//       // -------------------------------
+
+//       await InterviewPost.findByIdAndDelete(
+//         interview.postId
+//       );
+
+//       interview.status = "completed";
+
+//       await interview.save();
+
+//       console.log(
+//         `Interview ${interview._id} processed successfully.`
+//       );
+
+//     } catch (err) {
+
+//       console.error(err);
+
+//       interview.status = "failed";
+
+//       await interview.save();
+
+//     }
+
+//   } catch (err) {
+
+//     return res.status(500).json({
+//       success: false,
+//       message: err.message,
+//     });
+
+//   }
+// };
+
+
 const submitInterview = async (req, res) => {
+
   try {
 
-    const interview = await Interview.findById(req.params.id);
+    const interview =
+      await Interview.findById(req.params.id);
 
     if (!interview) {
+
       return res.status(404).json({
         message: "Interview not found",
       });
+
     }
 
-    const existingResult = await Result.findOne({
-      interviewId: interview._id,
-    });
+    const existing =
+      await Result.findOne({
+        interviewId: interview._id,
+      });
 
-    if (existingResult) {
+    if (existing) {
+
       return res.status(200).json({
         success: true,
-        resultId: existingResult._id,
+        resultId: existing._id,
         message: "Result already exists",
       });
+
     }
 
     interview.status = "processing";
+
     interview.submittedAt = new Date();
 
     await interview.save();
 
-    // Respond immediately
-    res.status(200).json({
+    return res.status(200).json({
+
       success: true,
-      message: "Interview submitted successfully.",
-    });
 
-    // ===============================
-    // Everything below runs in background
-    // ===============================
+      message:
+        "Interview submitted successfully. Evaluation started.",
 
-    try {
-
-      // -------------------------------
-      // Upload all videos
-      // -------------------------------
-
-      for (const question of interview.questions) {
-
-        if (!question.localRecordingPath) continue;
-
-        const upload = await cloudinary.uploader.upload(
-          question.localRecordingPath,
-          {
-            resource_type: "video",
-            folder: "interview-recordings",
-          }
-        );
-
-        question.recordingUrl = upload.secure_url;
-
-        await fs.unlink(question.localRecordingPath, () => {});
-
-        question.localRecordingPath = null;
-      }
-
-      await interview.save();
-
-      // -------------------------------
-      // Evaluate every answer
-      // -------------------------------
-
-      let totalScore = 0;
-      let answeredCount = 0;
-
-      for (const question of interview.questions) {
-
-        if (!question.answerText) continue;
-
-        // Replace this with OpenAI later
-        const evaluation = {
-          score: 80,
-          relevance: 82,
-          clarity: 78,
-          feedback:
-            "Good answer with room for more technical depth.",
-        };
-
-        question.aiEvaluation = evaluation;
-
-        totalScore += evaluation.score;
-        answeredCount++;
-
-      }
-
-      const overallScore =
-        answeredCount > 0
-          ? Math.round(totalScore / answeredCount)
-          : 0;
-
-      await interview.save();
-
-      // -------------------------------
-      // Generate Summary
-      // -------------------------------
-
-      const summary = {
-        strengths: [
-          "Good communication skills",
-          "Demonstrates basic technical knowledge",
-        ],
-        weaknesses: [
-          "Needs deeper understanding of advanced concepts",
-          "Could provide more structured answers",
-        ],
-        recommendation: "hire",
-      };
-
-      // -------------------------------
-      // Recruiter
-      // -------------------------------
-
-      const recruiter = await Admin.findById(
-        interview.recruiterId
-      ).select("name");
-
-      // -------------------------------
-      // Create Result
-      // -------------------------------
-
-      await Result.create({
-
-        interviewId: interview._id,
-
-        recruiter: recruiter.name,
-
-        recruiterId: interview.recruiterId,
-
-        candidateId: interview.candidateId,
-
-        overallScore,
-
-        summary: {
-
-          totalQuestions: interview.questions.length,
-
-          averageScore: overallScore,
-
-          ...summary,
-
-        },
-
-        questions: interview.questions,
-
-        evaluatedAt: new Date(),
-
-      });
-
-      // -------------------------------
-      // Cleanup
-      // -------------------------------
-
-      await InterviewPost.findByIdAndDelete(
-        interview.postId
-      );
-
-      interview.status = "completed";
-
-      await interview.save();
-
-      console.log(
-        `Interview ${interview._id} processed successfully.`
-      );
-
-    } catch (err) {
-
-      console.error(err);
-
-      interview.status = "failed";
-
-      await interview.save();
-
-    }
-
-  } catch (err) {
-
-    return res.status(500).json({
-      success: false,
-      message: err.message,
     });
 
   }
+
+  catch (err) {
+
+    return res.status(500).json({
+
+      success: false,
+
+      message: err.message,
+
+    });
+
+  }
+
 };
 
 
