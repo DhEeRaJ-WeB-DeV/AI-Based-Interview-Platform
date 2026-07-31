@@ -17,6 +17,7 @@ const questionSchema = new mongoose.Schema({
   // candidate's response
   answerText:    { type: String, default: null },   // STT transcript
   recordingUrl:  { type: String, default: null },  // Cloudinary URL (audio+video)
+  localRecordingPath : { type: String, default: null },
   answeredAt:    { type: Date,   default: null },
 
   // ai scoring
