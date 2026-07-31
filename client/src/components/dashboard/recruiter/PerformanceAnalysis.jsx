@@ -32,19 +32,6 @@ export default function PerformancePage() {
         )
       : 0;
 
-  // const handleDeleteResult = async(resultID)=>{
-  //     try{
-  //         const res = await api.delete(`/recruiter/delete-result/${resultID}`)
-  //         if (res.status == 200){
-  //            setResults(prev =>
-  //   prev.filter(result => result._id !== resultID)
-  // );
-  //         }
-  //       }catch(err){
-  //       console.log("error:",err)
-  //     }
-  // }
-
   const hireCount = results.filter(
     (r) =>
       r.summary?.recommendation?.toLowerCase() === "hire"

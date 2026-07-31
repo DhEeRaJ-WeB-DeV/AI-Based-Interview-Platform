@@ -1,4 +1,4 @@
-import { Camera, Check, Clock, Loader2, Mic, RefreshCcw, X } from "lucide-react";
+import { Camera, Check, ClipboardCheck, Loader2, Mic, RefreshCcw, X } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "../../../api/axiosClient";
 import useDeviceCheck from "./hooks/useDeviceCheck";
@@ -8,14 +8,18 @@ import useNetworkCheck,{
   NETWORK_POOR_MAX_MBPS,
   NETWORK_FAIR_MAX_MBPS,
 } from "./hooks/useNetworkCheck";
+import TermsAndConditionsModal from "./TermsAndConditionsModal";
+import { useState } from "react";
 
 
 export default function InstructionPage({ post, onBack, onStart }) {
+  const [showTerms, setShowTerms] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const rules = [
     {
-      icon: Clock,
-      title: "Timed session",
-      desc: "Each question has a time limit. Answer before time runs out.",
+      icon: ClipboardCheck,
+      title: "Recruiter Evaluation",
+      desc: "Your recorded interview, including video, communication, and answers, will be reviewed as part of the evaluation process.",
     },
     {
       icon: Mic,
@@ -45,7 +49,7 @@ export default function InstructionPage({ post, onBack, onStart }) {
 
   const { internetStatus, downloadMBps, pingMs, jitterMs, checkInternet } = useNetworkCheck();
 
-  const allChecksPassed = deviceStatus === "success" && internetStatus === "success";
+  const allChecksPassed = deviceStatus === "success" && internetStatus === "success" && termsAccepted ;
 
   const handleStart = async () => {
     if (!allChecksPassed) {
@@ -100,9 +104,10 @@ export default function InstructionPage({ post, onBack, onStart }) {
           ))}
         </div>
 
-        <p className="mt-4 text-sm text-slate-400">
-          Read carefully. Once you start, the session will be timed and
-          recorded.
+        <p className="mt-4 text-sm text-slate-40">
+           Before starting, please review the Terms & Conditions, complete the
+            camera & microphone check, and verify your internet connection. Once all
+            checks are complete, you can begin your interview.
         </p>
 
         <div className="my-6 grid gap-3 sm:grid-cols-2">
@@ -303,6 +308,35 @@ export default function InstructionPage({ post, onBack, onStart }) {
             </button>
           </div>
         </div>
+          
+          {/* terms and condition  */}
+          <div className="mt-4 flex justify-center">
+            <a
+              className={`inline-block rounded-md px-3 py-2 text-sm transition-colors ${
+                termsAccepted
+                  ? "cursor-not-allowed pointer-events-none text-green-400"
+                  : "cursor-pointer text-blue-500 hover:underline hover:text-blue-600"
+              }`}
+              onClick={() => {
+                if (!termsAccepted) {
+                  setShowTerms(true);
+                }
+              }}
+            >
+              {termsAccepted
+                ? "✓ Terms & Conditions Accepted"
+                : "View Terms & Conditions"}
+            </a>
+          </div>
+             <TermsAndConditionsModal
+              isOpen={showTerms}
+              onClose={() => setShowTerms(false)}
+              onAccept={() => {
+                setTermsAccepted(true);
+                setShowTerms(false);
+                console.log('User accepted terms');
+              }}
+            />
 
         <button
           type="button"
