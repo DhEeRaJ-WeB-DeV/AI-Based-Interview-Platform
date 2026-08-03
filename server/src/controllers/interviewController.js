@@ -21,8 +21,16 @@ const startInterview = async (req, res) => {
     postidforviolation = postId
 
     const user = await User.findById(candidateId).select("name email skills education experience projects");
+
     if (!user) {
       return res.status(404).json({ message: 'Candidate not found' });
+    }
+    if ( 
+      !(user.skills?.length) &&
+      !(user.education?.length) &&
+      !(user.experience?.length) &&
+      !(user.projects?.length)){
+      return res.status(400).json({ message: 'profile should be filled before attending the interview' });
     }
 
   if (
@@ -245,8 +253,8 @@ const startInterview = async (req, res) => {
       orderIndex: 6,
     },
   ];
-    const post = await InterviewPost.findById(postId)
-    const recruiterId = post.postedBy
+      const post = await InterviewPost.findById(postId)
+      const recruiterId = post.postedBy 
     const interview = await Interview.create({
       recruiterId,
       postId,
@@ -255,7 +263,7 @@ const startInterview = async (req, res) => {
       jobDescription,
       skills,
       difficulty,
-      status: 'in_progress',
+      status:'in_progress',
       startedAt: new Date(),
       questions,
     });
@@ -406,25 +414,81 @@ const interview_violation = async (req, res) => {
   const { isviolated } = req.body
 
   try {
-    const post = await InterviewPost.findById(postidforviolation).select("candidateEmail  postedBy")
-    const candidate_email = post.candidateEmail
-    const cur_email = await Admin.findById(post.postedBy).select("email")
-    await InterviewPost.findByIdAndDelete(postidforviolation)
+    // const post = await InterviewPost.findById(postidforviolation).select("candidateEmail  postedBy")
+    // const candidate_email = post.candidateEmail
+    // const recruiter = await Admin.findById(post.postedBy).select("email name")
+    // await InterviewPost.findByIdAndDelete(postidforviolation)
+    const interview = await Interview.findById(req.params.id);
+    if (!interview) return res.status(404).json({ message: 'Interview not found' });
+    
+    const existingResult = await Result.findOne({
+      interviewId: interview._id,
+    });
+    
+    if (existingResult) {
+      return res.status(200).json({
+        success: true,
+        resultId: existingResult._id,
+        message: "Result already exists",
+      });
+    }
+    
+    interview.status = 'completed';
+    interview.submittedAt = new Date();
+    await interview.save();
+    
+    const recruiter = await Admin.findById(interview.recruiterId).select("name email")
+    const candidate = await Admin.findById(interview.candidateId).select("name email")
+
+    const summary = {
+      strengths: [
+        "Good communication skills",
+        "Demonstrates basic technical knowledge"
+      ],
+      weaknesses: [
+        "Needs deeper understanding of advanced concepts",
+        "Could provide more structured answers"
+      ],
+      recommendation: "cheated"
+    };
+    const overallScore = 0;
+    
+    const result = await Result.create({
+      interviewId: interview._id,
+      recruiter: recruiter.name,
+      recruiterId: interview.recruiterId,
+      candidateId: interview.candidateId,
+      overallScore: overallScore,
+      summary: {
+        totalQuestions: interview.questions.length,
+        averageScore: overallScore,
+        ...summary,
+      },
+      questions: interview.questions,
+      evaluatedAt: new Date(),
+    });
 
     const transporter = createMailTransporter();
 
     await transporter.sendMail({
       from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to: cur_email,
+      to: recruiter.email,
       subject: "interview rules violation notification",
-      text: `the candidate with email : ${candidate_email}
+      text: `the candidate with email : ${candidate.email}
        has violated the interview rules by switching tabs multiple times, 
        and the interview post and interview has been terminated.`
     });
 
-    return res.status(201).json({
-      message: "the violation action done"
-    })
+    // return res.status(201).json({
+    //   message: "the violation action done"
+    // })
+     res.status(200).json({
+      success: true,
+      data: {
+        result,
+        questions: interview.questions,
+      },
+    });
 
   }
   catch (err) {

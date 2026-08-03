@@ -7,6 +7,8 @@ import { useTabSwitchGuard } from "../../../hooks/useTabSwitchGuard";
 import { useMediaRecorder } from "./hooks/useMediaRecorder";
 import { useSpeechSynthesis } from "./hooks/useTextToSpeech";
 import { useRealtimeAudio } from "./hooks/useRealtimeAudio";
+import { useNavigationGuard } from "./hooks/useNavigationGuard";
+
 const TOTAL_QUESTIONS = 6;
 const TIME_PER_QUESTION = 120;
 
@@ -35,6 +37,7 @@ export default function InterviewScreen({ interviewId }) {
   const [typedAnswer, setTypedAnswer] = useState("");
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
+  const [backButton,setBackbutton]=useState(false);
   const [interviewcompleted, setinterviewcompleted] = useState(false);
 
   const timerRef = useRef(null);
@@ -42,18 +45,9 @@ export default function InterviewScreen({ interviewId }) {
   const mediaStreamRef = useRef(null);
   const isFetchingQuestionRef = useRef(false);
 
-  // debugging purpose
-  const ans_countref = useRef(0);
-  // Always holds the latest transcript synchronously, so handleNext can
-  // read it without waiting on a React re-render and without needing
-  // liveTranscript in its dependency array (which would redefine the
-  // callback — and reset the question timer — on every transcript delta).
+  
   const liveTranscriptRef = useRef("");
 
-  // Mirrors session.questionSeq on the backend. Bumped every time we move
-  // to a new question, so a transcript event tagged with an old seq number
-  // (e.g. one that was still in flight when the question changed) gets
-  // ignored instead of bleeding into the new question's transcript.
   const questionSeqRef = useRef(0);
 
   const {
@@ -675,27 +669,6 @@ speak(
         </div>
 
         <aside className="flex flex-col gap-4">
-          {/* <section className="relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="h-full w-full object-cover"
-            />
-            {recording && (
-              <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                <span className="text-xs font-medium text-red-300">REC</span>
-              </div>
-            )}
-            {!recording && (
-              <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-600">
-                Camera initializing...
-              </div>
-            )}
-          </section> */}
-
           <section className="flex-1 rounded-lg border border-slate-800 bg-slate-900 p-5">
             <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Progress

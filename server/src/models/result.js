@@ -6,7 +6,7 @@ const summarySchema = new mongoose.Schema({
   averageScore:    { type: Number },
   strengths:       [{ type: String }],
   weaknesses:      [{ type: String }],
-  recommendation:  { type: String, enum: ['hire','reject'] },
+  recommendation:  { type: String, enum: ['hire','reject','cheated'] },
 }, { _id: false });
 
 const resultSchema = new mongoose.Schema({
