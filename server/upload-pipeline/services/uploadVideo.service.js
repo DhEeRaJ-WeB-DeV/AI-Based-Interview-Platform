@@ -30,6 +30,7 @@ const uploadVideo = async (interviewId, questionId) => {
   await interview.save();
 
   try {
+    console.log("cloudinary:", cloudinary.config())
     const result = await cloudinary.uploader.upload(
       question.localRecordingPath,
       {
@@ -57,14 +58,15 @@ const uploadVideo = async (interviewId, questionId) => {
   const latestInterview =
     await Interview.findById(interviewId);
 
-const allUploaded =
-    latestInterview.questions.every(
-        q => q.uploadStatus === "uploaded"
-    );
+const allFinished = latestInterview.questions.every(
+    q =>
+        q.uploadStatus === "uploaded" ||
+        q.uploadStatus === "failed"
+);
 
 
     if (
-      allUploaded &&
+      allFinished &&
       interview.status === "processing"
     ) {
 

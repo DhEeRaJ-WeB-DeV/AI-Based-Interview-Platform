@@ -32,6 +32,8 @@ uploadWorker.on("failed", (job, err) => {
     `Upload job ${job?.id} failed:`,
     err.message
   );
+
+console.error("reason: ",err.data);
 });
 
 uploadWorker.on("error", (err) => {

@@ -29,7 +29,9 @@ export default function InterviewScreen({ interviewId }) {
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
-const [showTabSwitchModal, setShowTabSwitchModal] = useState(false);
+  const [showTabSwitchModal, setShowTabSwitchModal] = useState(false);
+  const [inputMode, setInputMode] = useState("voice");
+  const [typedAnswer, setTypedAnswer] = useState("");
 
 
   const videoRef = useRef(null);
@@ -109,32 +111,32 @@ const [showTabSwitchModal, setShowTabSwitchModal] = useState(false);
 
   }, [interviewId]);
 
-// tabswitch
-useTabSwitchGuard({
-  enabled: true,
-  maxViolations: 2,
+  // tabswitch
+  // useTabSwitchGuard({
+  //   enabled: true,
+  //   maxViolations: 2,
 
-  onWarning: () => {
-    setShowWarningModal(true);
-  },
+  //   onWarning: () => {
+  //     setShowWarningModal(true);
+  //   },
 
-  onViolation: async () => {
-    cleanupSession();
-    setShowWarningModal(false);
-    setShowTabSwitchModal(true);
+  //   onViolation: async () => {
+  //     cleanupSession();
+  //     setShowWarningModal(false);
+  //     setShowTabSwitchModal(true);
 
-    try {
-      await api.post(
-        `/interview/interview-violation`,
-        {
-          isviolated: true,
-        }
-      );
-    } catch (err) {
-      console.error(err);
-    }
-  },
-});
+  //     try {
+  //       await api.post(
+  //         `/interview/interview-violation`,
+  //         {
+  //           isviolated: true,
+  //         }
+  //       );
+  //     } catch (err) {
+  //       console.error(err);
+  //     }
+  //   },
+  // });
 
 
   const { speak, stopSpeaking } = useSpeechSynthesis();
@@ -162,6 +164,12 @@ useTabSwitchGuard({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+
+
+    liveTranscriptRef.current = "";
+    setLiveTranscript("");
+    setTypedAnswer("");
+
   }, [
     stopSpeaking,
     stopStreaming,
@@ -189,72 +197,78 @@ useTabSwitchGuard({
   );
 
 
- const fetchQuestion = useCallback(async () => {
+  const fetchQuestion = useCallback(async () => {
 
 
-  // Prevent concurrent requests
-  if (isFetchingQuestionRef.current) {
-    return;
-  }
-
-  isFetchingQuestionRef.current = true;
-
-  setLoading(true);
-
-  try {
-
-    const res = await api.get(
-      `/interview/${interviewId}/question`
-    );
-
-    if (!res.data.question) {
+    // Prevent concurrent requests
+    if (isFetchingQuestionRef.current) {
       return;
     }
 
-    setQuestion(res.data.question);
+    isFetchingQuestionRef.current = true;
 
-    questionSeqRef.current += 1;
-    socket.emit("start_question");
+    setLoading(true);
 
-    liveTranscriptRef.current = "";
-    setLiveTranscript("");
+    try {
 
-    stopSpeaking();
+      const res = await api.get(
+        `/interview/${interviewId}/question`
+      );
 
-    speak(
-      res.data.question.questionText,
-      async () => {
-
-        setIsRecordingAnswer(true);
-
-        await startStreaming(mediaStreamRef.current);
-
+      if (!res.data.question) {
+        return;
       }
-    );
 
-    setQuestionIndex((prev) => prev + 1);
+      setQuestion(res.data.question);
+
+      questionSeqRef.current += 1;
+      socket.emit("start_question");
+
+      liveTranscriptRef.current = "";
+      setLiveTranscript("");
+
+      stopSpeaking();
+
+      speak(
+        res.data.question.questionText,
+        async () => {
+
+          if (inputMode === "voice") {
+
+            setIsRecordingAnswer(true);
+
+            await startStreaming(
+              mediaStreamRef.current
+            );
+
+          }
+
+        }
+      );
+
+      setQuestionIndex((prev) => prev + 1);
 
 
-  } catch (err) {
+    } catch (err) {
 
-    toast.error(
-      "Failed to load question. Please try again."
-    );
+      toast.error(
+        "Failed to load question. Please try again."
+      );
 
-  } finally {
+    } finally {
 
-    isFetchingQuestionRef.current = false;
+      isFetchingQuestionRef.current = false;
 
-    setLoading(false);
+      setLoading(false);
 
-  }
+    }
 
-}, [
-  interviewId,
-  speak,
-  stopSpeaking,
-  startStreaming,
-]);
+  }, [
+    interviewId,
+    speak,
+    stopSpeaking,
+    startStreaming,
+  ]);
 
   useEffect(() => {
     const init = async () => {
@@ -343,27 +357,34 @@ useTabSwitchGuard({
       // Force OpenAI to finalize any speech still sitting in the buffer
       // before we read the transcript, so the last sentence before "Next"
       // isn't lost.
-      await new Promise((resolve) => {
+      if (inputMode === "voice") {
 
-        socket.once("transcript_commit_complete", () => {
-          resolve();
+        await new Promise((resolve) => {
+
+          socket.once("transcript_commit_complete", () => {
+            resolve();
+          });
+
+          socket.emit("commit_audio");
+
         });
+      }
 
-        socket.emit("commit_audio");
-
-      });
-
-      await stopStreaming();
+      if (inputMode === "voice") {
+        await stopStreaming();
+      }
       setIsRecordingAnswer(false);
 
       const videoBlob = await stopVideoRecording();
 
 
 
-       await uploadAnswer(
-          videoBlob,
-          liveTranscriptRef.current
-        );
+      await uploadAnswer(
+        videoBlob,
+        inputMode === "voice"
+          ? liveTranscriptRef.current
+          : typedAnswer
+      );
 
       if (questionIndex >= TOTAL_QUESTIONS) {
         await api.post(
@@ -406,10 +427,29 @@ useTabSwitchGuard({
     stopSpeaking,
     submitting,
     uploadAnswer,
+    inputMode,
+    typedAnswer
   ]);
 
 
   const isLastQuestion = questionIndex >= TOTAL_QUESTIONS;
+
+
+  const switchToVoice = async () => {
+
+    setInputMode("voice");
+
+    setIsRecordingAnswer(true);
+
+    await startStreaming(mediaStreamRef.current);
+
+  };
+
+  const switchToText = async () => {
+    await stopStreaming();
+    setIsRecordingAnswer(false);
+    setInputMode("text");
+  };
 
   return (
     <div className="min-h-screen bg-[#0a0f1d] p-4 text-white sm:p-6">
@@ -450,10 +490,18 @@ useTabSwitchGuard({
             </div>
 
             <div className="min-h-[120px] flex-1 text-sm leading-relaxed text-slate-300">
-              {liveTranscript || (
-                <span className="text-slate-600">
-                  Start speaking. Your answer will appear here.
-                </span>
+              {inputMode === "text" ? (
+                <textarea
+                  value={typedAnswer}
+                  onChange={(e) =>
+                    setTypedAnswer(e.target.value)
+                  }
+                  placeholder="Type your answer..."
+                />
+              ) : (
+                <div>
+                  {liveTranscript}
+                </div>
               )}
               {isRecordingAnswer && (
                 <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-white align-middle" />
@@ -464,6 +512,18 @@ useTabSwitchGuard({
               <div className="text-xs text-slate-500">
                 {isRecordingAnswer ? "Listening..." : "Mic off"}
               </div>
+
+              <button
+                onClick={switchToVoice}
+              >
+                🎤 Voice
+              </button>
+
+              <button
+                onClick={switchToText}
+              >
+                ⌨️ Type
+              </button>
               <button
                 type="button"
                 onClick={handleNext}
@@ -569,46 +629,46 @@ useTabSwitchGuard({
         </div>
       )}
 
- {showWarningModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-    <div className="w-full max-w-md rounded-lg border border-amber-700 bg-slate-900 p-8 text-center">
-      <h2 className="mb-3 text-2xl font-bold text-amber-400">
-        Tab switch detected
-      </h2>
-      <p className="mb-6 text-slate-300">
-        Switching tabs again will end your interview immediately.
-      </p>
-      <button
-        type="button"
-        onClick={() => setShowWarningModal(false)}
-        className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500 cursor-pointer"
-      >
-        Continue interview
-      </button>
-    </div>
-  </div>
-)}
+      {showWarningModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-lg border border-amber-700 bg-slate-900 p-8 text-center">
+            <h2 className="mb-3 text-2xl font-bold text-amber-400">
+              Tab switch detected
+            </h2>
+            <p className="mb-6 text-slate-300">
+              Switching tabs again will end your interview immediately.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowWarningModal(false)}
+              className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500 cursor-pointer"
+            >
+              Continue interview
+            </button>
+          </div>
+        </div>
+      )}
 
       {showTabSwitchModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-    <div className="w-full max-w-md rounded-lg border border-red-900 bg-slate-900 p-8 text-center">
-      <h2 className="mb-3 text-2xl font-bold text-red-400">
-        Interview cancelled
-      </h2>
-      <p className="mb-6 text-slate-300">
-        You switched away from this tab. For fairness to all candidates,
-        the interview session ends immediately when that happens.
-      </p>
-      <button
-        type="button"
-        onClick={() => navigate("/dashboard", { replace: true, state: { malpractice: true } })}
-        className="rounded-md bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-500 cursor-pointer"
-      >
-        Return to dashboard
-      </button>
-    </div>
-  </div>
-)}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-md rounded-lg border border-red-900 bg-slate-900 p-8 text-center">
+            <h2 className="mb-3 text-2xl font-bold text-red-400">
+              Interview cancelled
+            </h2>
+            <p className="mb-6 text-slate-300">
+              You switched away from this tab. For fairness to all candidates,
+              the interview session ends immediately when that happens.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard", { replace: true, state: { malpractice: true } })}
+              className="rounded-md bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-500 cursor-pointer"
+            >
+              Return to dashboard
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

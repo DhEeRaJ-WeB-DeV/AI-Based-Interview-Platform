@@ -344,16 +344,24 @@ const saveAnswer = async (req, res) => {
 
     await interview.save();
 
+    // adding the video uploading work to queue for parallel processing
     await uploadQueue.add(
-      "upload-video",
-      {
-        interviewId: interview._id,
-        questionId: question._id,
-      },
-      {
-        jobId: `${interview._id}-${question._id}`,
-      }
-    );
+  "upload-video",
+  {
+    interviewId: interview._id,
+    questionId: question._id,
+  },
+  {
+    jobId: `${interview._id}-${question._id}`,
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 5000,
+    },
+    removeOnComplete: true,
+    removeOnFail: false,
+  }
+);
 
     return res.json({
       success: true,
