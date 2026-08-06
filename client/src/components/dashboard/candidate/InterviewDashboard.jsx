@@ -81,11 +81,6 @@ const CandidateDashboard = ({ onAttend }) => {
     );
   };
 
-  // const fetchPosts = useCallback(async () => {
-  //   const { data } = await api.get("/interview-posts/dashboard");
-  //   return data.posts || [];
-  // }, []);
-
   const getDashboardError = useCallback((err) => {
     const msg =
       err.response?.data?.message || err.message || "Failed to load interviews.";
@@ -127,7 +122,7 @@ const CandidateDashboard = ({ onAttend }) => {
         <button
           type="button"
           onClick={refetch}
-          className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600"
+          className="rounded-md bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600 cursor-pointer"
         >
           Retry
         </button>

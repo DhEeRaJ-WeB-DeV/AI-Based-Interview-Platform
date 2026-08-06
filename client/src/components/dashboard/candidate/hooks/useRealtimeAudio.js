@@ -62,10 +62,16 @@ export const useRealtimeAudio = () => {
     const stopStreaming = async () => {
 
         workletRef.current?.disconnect();
+        workletRef.current = null;
 
         sourceRef.current?.disconnect();
+        sourceRef.current = null;
 
-        await contextRef.current?.close();
+       if (contextRef.current && contextRef.current.state !== "closed") 
+        {
+           await contextRef.current.close();
+      }
+      contextRef.current = null;
 
     };
 

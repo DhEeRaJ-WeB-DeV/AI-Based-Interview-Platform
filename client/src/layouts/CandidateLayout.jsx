@@ -1,5 +1,3 @@
-// CandidateLayout.jsx
-
 import {
   Menu, X, Bell, ChevronDown, Cpu,
   HelpCircle, LogOut, User,CalendarDays
@@ -47,7 +45,6 @@ const CandidateLayout = ({ onLogout, user }) => {
         return <CandidateDashboard onAttend={(post) => setSelectedPost(post)} />;
 
     case "Schedule Time":
-      console.log()
        return confirmedBooking ? (
             <ConfirmationCard booking={confirmedBooking} onCancel={handleCancel} />
           ) : (

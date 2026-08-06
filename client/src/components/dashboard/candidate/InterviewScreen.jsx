@@ -7,6 +7,8 @@ import { useTabSwitchGuard } from "../../../hooks/useTabSwitchGuard";
 import { useMediaRecorder } from "./hooks/useMediaRecorder";
 import { useSpeechSynthesis } from "./hooks/useTextToSpeech";
 import { useRealtimeAudio } from "./hooks/useRealtimeAudio";
+import { useNavigationGuard } from "./hooks/useNavigationGuard";
+
 const TOTAL_QUESTIONS = 6;
 
 const steps = [
@@ -32,10 +34,12 @@ export default function InterviewScreen({ interviewId }) {
   const [showTabSwitchModal, setShowTabSwitchModal] = useState(false);
   const [inputMode, setInputMode] = useState("voice");
   const [typedAnswer, setTypedAnswer] = useState("");
-
+  const [backButton, setBackbutton] = useState(false);
+  const [interviewcompleted, setinterviewcompleted] = useState(false);
 
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
+  const answerPhaseStartedRef = useRef(false);
   const isFetchingQuestionRef = useRef(false);
 
 
@@ -45,10 +49,6 @@ export default function InterviewScreen({ interviewId }) {
   // callback — and reset the question timer — on every transcript delta).
   const liveTranscriptRef = useRef("");
 
-  // Mirrors session.questionSeq on the backend. Bumped every time we move
-  // to a new question, so a transcript event tagged with an old seq number
-  // (e.g. one that was still in flight when the question changed) gets
-  // ignored instead of bleeding into the new question's transcript.
   const questionSeqRef = useRef(0);
 
   const {
@@ -139,6 +139,97 @@ export default function InterviewScreen({ interviewId }) {
   // });
 
 
+
+
+
+  // for locking the esc and cntrlc and v
+  useEffect(() => {
+    // 1. Right-click block
+    const handleContextMenu = (event) => {
+      event.preventDefault();
+    };
+
+    // enters into full screen mode
+    document.documentElement.requestFullscreen()
+
+    // 2. Keyboard shortcuts block (Copy, Paste)
+    const handleKeyDown = (event) => {
+      const isCopyOrPaste = event.key === "c" || event.key === "v" || event.key === "C" || event.key === "V";
+      if ((event.ctrlKey || event.metaKey) && isCopyOrPaste) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    // 3. Monitor Fullscreen Transitions
+    const handleFullscreenChange = async () => {
+      if (document.fullscreenElement) {
+        if (navigator.keyboard?.lock) {
+          try {
+            await navigator.keyboard.lock(["Escape"]);
+          } catch (e) { }
+        }
+        // return;
+      }
+
+      // User exited fullscreen
+      toast.error("Fullscreen is required.");
+
+      // Record violation
+      // await handleMalpractice("fullscreen_exit");
+
+      // Try to re-enter fullscreen
+      try {
+        await document.documentElement.requestFullscreen();
+      } catch (e) {
+        console.log("User denied fullscreen");
+      }
+    };
+
+    // 4. Attach all listeners
+    // document.addEventListener('contextmenu', handleContextMenu);
+    window.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+
+    // 5. Cleanup function
+    return () => {
+      if (interviewcompleted === true) {
+        // document.removeEventListener('contextmenu', handleContextMenu);
+        window.removeEventListener("keydown", handleKeyDown, true);
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        if ('keyboard' in navigator && 'unlock' in navigator.keyboard) {
+          navigator.keyboard.unlock();
+        }
+      }
+    };
+  }, []);
+
+
+
+  const isFirstModeRenderRef = useRef(true);
+
+  useEffect(() => {
+    if (isFirstModeRenderRef.current) {
+      isFirstModeRenderRef.current = false;
+      return;
+    }
+
+    // Question is still being read aloud — nothing to toggle yet.
+    // The speak() callback above will respect inputMode once it starts.
+    if (!answerPhaseStartedRef.current) {
+      return;
+    }
+
+    if (inputMode === "text") {
+      stopStreaming();
+      setIsRecordingAnswer(false);
+    } else {
+      setIsRecordingAnswer(true);
+      startStreaming(mediaStreamRef.current);
+    }
+  }, [inputMode]);
+
+
   const { speak, stopSpeaking } = useSpeechSynthesis();
 
   const cleanupSession = useCallback(() => {
@@ -226,6 +317,7 @@ export default function InterviewScreen({ interviewId }) {
 
       liveTranscriptRef.current = "";
       setLiveTranscript("");
+      setTypedAnswer(""); 
 
       stopSpeaking();
 
@@ -268,7 +360,9 @@ export default function InterviewScreen({ interviewId }) {
     speak,
     stopSpeaking,
     startStreaming,
+    inputMode
   ]);
+
 
   useEffect(() => {
     const init = async () => {
@@ -368,22 +462,21 @@ export default function InterviewScreen({ interviewId }) {
           socket.emit("commit_audio");
 
         });
-      }
 
+
+      }
+      
       if (inputMode === "voice") {
         await stopStreaming();
       }
+
       setIsRecordingAnswer(false);
 
       const videoBlob = await stopVideoRecording();
 
-
-
       await uploadAnswer(
         videoBlob,
-        inputMode === "voice"
-          ? liveTranscriptRef.current
-          : typedAnswer
+        inputMode === "text" ? typedAnswer : liveTranscriptRef.current
       );
 
       if (questionIndex >= TOTAL_QUESTIONS) {
@@ -391,6 +484,8 @@ export default function InterviewScreen({ interviewId }) {
           `/interview/${interviewId}/submit`,
           {}
         );
+
+        setinterviewcompleted(true)
 
         cleanupSession();
         setShowSuccessModal(true);
@@ -449,64 +544,82 @@ export default function InterviewScreen({ interviewId }) {
     await stopStreaming();
     setIsRecordingAnswer(false);
     setInputMode("text");
+    setTypedAnswer(liveTranscript)
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0f1d] p-4 text-white sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-400">
-            AI Interview
-          </span>
-          <span className="text-sm text-slate-400">
-            Question {questionIndex} of {TOTAL_QUESTIONS}
-          </span>
+    <>
+      <div className="min-h-screen bg-[#0a0f1d] p-4 text-white sm:p-6">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-400">
+              AI Interview
+            </span>
+            <span className="text-sm text-slate-400">
+              Question {questionIndex} of {TOTAL_QUESTIONS}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="flex flex-col gap-4 lg:col-span-2">
-          <section className="rounded-lg border border-slate-800 bg-slate-900 p-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Current question
-            </p>
-            {loading ? (
-              <p className="animate-pulse text-sm text-slate-400">
-                Generating question...
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <section className="rounded-lg border border-slate-800 bg-slate-900 p-5 min-h-[140px]">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Current question
               </p>
-            ) : (
               <p className="text-base font-medium leading-relaxed">
                 {question?.questionText}
               </p>
-            )}
-          </section>
+            </section>
 
-          <section className="flex flex-1 flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-5">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-red-500" />
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Live transcript
-              </p>
-            </div>
+            <section className="flex flex-1 flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900 p-5">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  Live transcript
+                </p>
+              </div>
 
-            <div className="min-h-[120px] flex-1 text-sm leading-relaxed text-slate-300">
-              {inputMode === "text" ? (
-                <textarea
-                  value={typedAnswer}
-                  onChange={(e) =>
-                    setTypedAnswer(e.target.value)
-                  }
-                  placeholder="Type your answer..."
-                />
-              ) : (
-                <div>
-                  {liveTranscript}
-                </div>
-              )}
-              {isRecordingAnswer && (
-                <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-white align-middle" />
-              )}
-            </div>
+             <div className="min-h-[260px] flex-1 text-sm leading-relaxed text-slate-300">
+                {inputMode === "text" ? (
+                  <textarea
+                    value={typedAnswer}
+                    onChange={(e) => setTypedAnswer(e.target.value)}
+                    placeholder="Type your answer here..."
+                    spellCheck={false}
+                    autoFocus
+                    className="
+    h-72
+    w-full
+    resize-none
+    rounded-xl
+    border
+    border-slate-700
+    bg-[#0f172a]
+    p-5
+    text-base
+    leading-7
+    text-slate-100
+    placeholder:text-slate-500
+    outline-none
+    transition-all
+    duration-200
+    focus:border-emerald-500
+    focus:ring-2
+    focus:ring-emerald-500/20
+  "
+                  />
+                ) : (
+                  <div className="whitespace-pre-wrap text-base leading-7 text-slate-300">
+                    {liveTranscript || (
+                      <span className="text-slate-500 italic">
+                        Your speech will appear here...
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
 
             <div className="flex flex-col gap-3 border-t border-slate-800 pt-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-slate-500">
@@ -515,12 +628,20 @@ export default function InterviewScreen({ interviewId }) {
 
               <button
                 onClick={switchToVoice}
+                className={`px-5 py-2 text-sm font-medium transition ${inputMode === "voice"
+                    ? "bg-emerald-600 text-white"
+                    : "text-slate-400 hover:bg-slate-800"
+                  }`}
               >
                 🎤 Voice
               </button>
 
               <button
                 onClick={switchToText}
+                className={`px-5 py-2 text-sm font-medium transition ${inputMode === "text"
+                    ? "bg-emerald-600 text-white"
+                    : "text-slate-400 hover:bg-slate-800"
+                  }`}
               >
                 ⌨️ Type
               </button>
@@ -537,139 +658,124 @@ export default function InterviewScreen({ interviewId }) {
                     : "Next question"}
               </button>
             </div>
-          </section>
-        </div>
+          </div>
 
-        <aside className="flex flex-col gap-4">
-          {/* <section className="relative aspect-[4/3] overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="h-full w-full object-cover"
-            />
-            {recording && (
-              <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                <span className="text-xs font-medium text-red-300">REC</span>
-              </div>
-            )}
-            {!recording && (
-              <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-600">
-                Camera initializing...
-              </div>
-            )}
-          </section> */}
+          <aside className="flex flex-col gap-4">
+            <section className="flex-1 rounded-lg border border-slate-800 bg-slate-900 p-5">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Progress
+              </p>
+              <div className="flex flex-col gap-3">
+                {steps.map((step, index) => {
+                  const stepIndex = index + 1;
+                  const status =
+                    stepIndex < questionIndex
+                      ? "done"
+                      : stepIndex === questionIndex
+                        ? "active"
+                        : "pending";
 
-          <section className="flex-1 rounded-lg border border-slate-800 bg-slate-900 p-5">
-            <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Progress
-            </p>
-            <div className="flex flex-col gap-3">
-              {steps.map((step, index) => {
-                const stepIndex = index + 1;
-                const status =
-                  stepIndex < questionIndex
-                    ? "done"
-                    : stepIndex === questionIndex
-                      ? "active"
-                      : "pending";
-
-                return (
-                  <div key={step} className="flex items-center gap-3">
-                    <div
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${status === "done"
-                        ? "bg-emerald-950 text-emerald-300"
-                        : ""
-                        } ${status === "active" ? "bg-white text-slate-900" : ""
-                        } ${status === "pending"
-                          ? "bg-slate-800 text-slate-500"
+                  return (
+                    <div key={step} className="flex items-center gap-3">
+                      <div
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-medium ${status === "done"
+                          ? "bg-emerald-950 text-emerald-300"
                           : ""
-                        }`}
-                    >
-                      {status === "done" ? "OK" : stepIndex}
+                          } ${status === "active" ? "bg-white text-slate-900" : ""
+                          } ${status === "pending"
+                            ? "bg-slate-800 text-slate-500"
+                            : ""
+                          }`}
+                      >
+                        {status === "done" ? "OK" : stepIndex}
+                      </div>
+                      <span
+                        className={`text-sm ${status === "done" ? "text-slate-500 line-through" : ""
+                          } ${status === "active" ? "font-medium text-white" : ""} ${status === "pending" ? "text-slate-600" : ""
+                          }`}
+                      >
+                        {step}
+                      </span>
                     </div>
-                    <span
-                      className={`text-sm ${status === "done" ? "text-slate-500 line-through" : ""
-                        } ${status === "active" ? "font-medium text-white" : ""} ${status === "pending" ? "text-slate-600" : ""
-                        }`}
-                    >
-                      {step}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        </aside>
+                  );
+                })}
+              </div>
+            </section>
+          </aside>
+        </div>
       </div>
 
-      {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-lg border border-slate-700 bg-slate-900 p-8 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-white">
-              Interview submitted
-            </h2>
-            <p className="mb-6 text-slate-300">
-              Your responses and evaluation data have been submitted to the
-              recruiter.
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                cleanupSession()
-                navigate("/dashboard", { replace: true })
-              }}
-              className="rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500 cursor-pointer"
-            >
-              Go to dashboard
-            </button>
+      {
+        showSuccessModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-lg border border-slate-700 bg-slate-900 p-8 text-center">
+              <h2 className="mb-3 text-2xl font-bold text-white">
+                Interview submitted
+              </h2>
+              <p className="mb-6 text-slate-300">
+                Your responses and evaluation data have been submitted to the
+                recruiter.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  cleanupSession()
+                  navigate("/dashboard", { replace: true })
+                }}
+                className="rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500 cursor-pointer"
+              >
+                Go to dashboard
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {showWarningModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-md rounded-lg border border-amber-700 bg-slate-900 p-8 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-amber-400">
-              Tab switch detected
-            </h2>
-            <p className="mb-6 text-slate-300">
-              Switching tabs again will end your interview immediately.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowWarningModal(false)}
-              className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500 cursor-pointer"
-            >
-              Continue interview
-            </button>
+      {
+        showWarningModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div className="w-full max-w-md rounded-lg border border-amber-700 bg-slate-900 p-8 text-center">
+              <h2 className="mb-3 text-2xl font-bold text-amber-400">
+                Tab switch detected
+              </h2>
+              <p className="mb-6 text-slate-300">
+                Switching tabs again will end your interview immediately.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowWarningModal(false)}
+                className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500 cursor-pointer"
+              >
+                Continue interview
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {showTabSwitchModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-md rounded-lg border border-red-900 bg-slate-900 p-8 text-center">
-            <h2 className="mb-3 text-2xl font-bold text-red-400">
-              Interview cancelled
-            </h2>
-            <p className="mb-6 text-slate-300">
-              You switched away from this tab. For fairness to all candidates,
-              the interview session ends immediately when that happens.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard", { replace: true, state: { malpractice: true } })}
-              className="rounded-md bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-500 cursor-pointer"
-            >
-              Return to dashboard
-            </button>
+      {
+        showTabSwitchModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+            <div className="w-full max-w-md rounded-lg border border-red-900 bg-slate-900 p-8 text-center">
+              <h2 className="mb-3 text-2xl font-bold text-red-400">
+                Interview cancelled
+              </h2>
+              <p className="mb-6 text-slate-300">
+                You switched away from this tab. For fairness to all candidates,
+                the interview session ends immediately when that happens.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/dashboard", { replace: true, state: { malpractice: true } })}
+                className="rounded-md bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-500 cursor-pointer"
+              >
+                Return to dashboard
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-    </div>
+    </>
   );
 }
