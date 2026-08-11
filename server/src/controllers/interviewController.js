@@ -7,9 +7,10 @@ const fs = require("fs")
 const AIUsage = require("../models/AIUsage");
 const Admin = require("../models/Admin")
 const { createMailTransporter } = require("../controllers/authController");
-const  uploadQueue  = require("../../upload-pipeline/queues/upload.queue")
+const uploadQueue = require("../../upload-pipeline/queues/upload.queue")
 const User = require('../models/User');
 const OpenAI = require('openai');
+const InterviewViolation = require("../models/interviewViolation");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 let postidforviolation = ""
@@ -21,16 +22,31 @@ const startInterview = async (req, res) => {
     const candidateId = req.user.id;
     postidforviolation = postId
 
+    // for candidate to return from where he left in case od violation
+    const existingInterview = await Interview.findOne({
+      postId,
+      candidateId,
+      status: "in_progress",
+    });
+
+    if (existingInterview) {
+      return res.status(200).json({
+        success: true,
+        resumed: true,
+        interviewId: existingInterview._id,
+        message: "Interview resumed.",
+      });
+    }
     const user = await User.findById(candidateId).select("name email skills education experience projects");
 
     if (!user) {
       return res.status(404).json({ message: 'Candidate not found' });
     }
-    if ( 
+    if (
       !(user.skills?.length) &&
       !(user.education?.length) &&
       !(user.experience?.length) &&
-      !(user.projects?.length)){
+      !(user.projects?.length)) {
       return res.status(400).json({ message: 'profile should be filled before attending the interview' });
     }
 
@@ -264,7 +280,7 @@ const startInterview = async (req, res) => {
       jobDescription,
       skills,
       difficulty,
-      status: 'processing',
+      status: 'in_progress',
       startedAt: new Date(),
       questions,
     });
@@ -328,6 +344,8 @@ const saveAnswer = async (req, res) => {
 
     const interview = await Interview.findById(req.params.id);
 
+    let violation
+
     if (!interview)
       return res.status(404).json({
         message: "Interview not found",
@@ -354,22 +372,22 @@ const saveAnswer = async (req, res) => {
 
     // adding the video uploading work to queue for parallel processing
     await uploadQueue.add(
-  "upload-video",
-  {
-    interviewId: interview._id,
-    questionId: question._id,
-  },
-  {
-    jobId: `${interview._id}-${question._id}`,
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 5000,
-    },
-    removeOnComplete: true,
-    removeOnFail: false,
-  }
-);
+      "upload-video",
+      {
+        interviewId: interview._id,
+        questionId: question._id,
+      },
+      {
+        jobId: `${interview._id}-${question._id}`,
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 5000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+      }
+    );
 
     return res.json({
       success: true,
@@ -391,94 +409,94 @@ const saveAnswer = async (req, res) => {
 
 
 const interview_violation = async (req, res) => {
-  const { isviolated } = req.body
-
   try {
-    // const post = await InterviewPost.findById(postidforviolation).select("candidateEmail  postedBy")
-    // const candidate_email = post.candidateEmail
-    // const recruiter = await Admin.findById(post.postedBy).select("email name")
-    // await InterviewPost.findByIdAndDelete(postidforviolation)
-    const interview = await Interview.findById(req.params.id);
-    if (!interview) return res.status(404).json({ message: 'Interview not found' });
-    
-    const existingResult = await Result.findOne({
-      interviewId: interview._id,
+    const { interviewId, type } = req.body;
+
+    console.log("VIOLATION RECEIVED:", {
+      interviewId,
+      type,
     });
-    
-    if (existingResult) {
-      return res.status(200).json({
-        success: true,
-        resultId: existingResult._id,
-        message: "Result already exists",
+
+    const interview = await Interview.findById(interviewId);
+
+    if (!interview) {
+      return res.status(404).json({
+        success: false,
+        message: "Interview not found",
       });
     }
-    
-    interview.status = 'completed';
-    interview.submittedAt = new Date();
-    await interview.save();
-    
-    const recruiter = await Admin.findById(interview.recruiterId).select("name email")
-    const candidate = await Admin.findById(interview.candidateId).select("name email")
 
-    const summary = {
-      strengths: [
-        "Good communication skills",
-        "Demonstrates basic technical knowledge"
-      ],
-      weaknesses: [
-        "Needs deeper understanding of advanced concepts",
-        "Could provide more structured answers"
-      ],
-      recommendation: "cheated"
-    };
-    const overallScore = 0;
-    
-    const result = await Result.create({
-      interviewId: interview._id,
-      recruiter: recruiter.name,
-      recruiterId: interview.recruiterId,
-      candidateId: interview.candidateId,
-      overallScore: overallScore,
-      summary: {
-        totalQuestions: interview.questions.length,
-        averageScore: overallScore,
-        ...summary,
+    if (!["fullscreen", "tabSwitch"].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid violation type",
+      });
+    }
+
+    const field =
+      type === "fullscreen"
+        ? "fullscreen"
+        : "tabSwitch";
+
+    const violation = await InterviewViolation.findOneAndUpdate(
+      { interviewId },
+      {
+        $inc: {
+          [field]: 1,
+        },
       },
-      questions: interview.questions,
-      evaluatedAt: new Date(),
-    });
+      {
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true,
+      }
+    );
 
-    const transporter = createMailTransporter();
+    const count = violation[field];
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to: recruiter.email,
-      subject: "interview rules violation notification",
-      text: `the candidate with email : ${candidate.email}
-       has violated the interview rules by switching tabs multiple times, 
-       and the interview post and interview has been terminated.`
-    });
+    console.log(
+      `${type} violation count:`,
+      count
+    );
 
-    // return res.status(201).json({
-    //   message: "the violation action done"
-    // })
-     res.status(200).json({
+    // SECOND VIOLATION
+    if (count >= 2) {
+
+      await InterviewViolation.findOneAndDelete({
+        interviewId,
+      });
+
+      return res.status(200).json({
+        success: true,
+        terminate: true,
+        count,
+        type,
+        message: `Second ${type} violation`,
+      });
+    }
+
+    // FIRST VIOLATION
+    return res.status(200).json({
       success: true,
-      data: {
-        result,
-        questions: interview.questions,
-      },
+      terminate: false,
+      count,
+      type,
+      message: `First ${type} violation`,
     });
 
-  }
-  catch (err) {
-    res.status(500).json({
-      message: `something went wrong :${err}`
-    })
-  }
+  } catch (err) {
 
-}
+    console.error(
+      "Violation error:",
+      err
+    );
 
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
 
 
 // const submitInterview = async (req, res) => {
@@ -846,6 +864,8 @@ const interview_violation = async (req, res) => {
 
 const submitInterview = async (req, res) => {
 
+  const { terminate } = req.body;
+
   try {
 
     const interview =
@@ -874,11 +894,63 @@ const submitInterview = async (req, res) => {
 
     }
 
-    interview.status = "processing";
+    if (terminate) {
 
-    interview.submittedAt = new Date();
+      const recruiter = await Admin.findById(interview.recruiterId).select("name email")
+      const candidate = await User.findById(interview.candidateId).select("name email")
 
-    await interview.save();
+      const summary = {
+        strengths: [
+          "Good communication skills",
+          "Demonstrates basic technical knowledge"
+        ],
+        weaknesses: [
+          "Needs deeper understanding of advanced concepts",
+          "Could provide more structured answers"
+        ],
+        recommendation: "cheated"
+      };
+      const overallScore = 0;
+
+      const result = await Result.create({
+        interviewId: interview._id,
+        recruiter: recruiter.name,
+        recruiterId: interview.recruiterId,
+        candidateId: interview.candidateId,
+        overallScore: overallScore,
+        summary: {
+          totalQuestions: interview.questions.length,
+          averageScore: overallScore,
+          ...summary,
+        },
+        questions: interview.questions,
+        evaluatedAt: new Date(),
+      });
+
+      const transporter = createMailTransporter();
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+        to: recruiter.email,
+        subject: "interview rules violation notification",
+        text: `the candidate with email : ${candidate.email}
+         has violated the interview rules by exiting full screeen multiple times`
+      });
+
+      interview.status = "terminated";
+
+      interview.submittedAt = new Date();
+
+      await interview.save();
+
+      await InterviewPost.findByIdAndDelete(interview.postId)
+
+      return res.status(200).json({
+        result: result
+      });
+
+    }
+
 
     return res.status(200).json({
 

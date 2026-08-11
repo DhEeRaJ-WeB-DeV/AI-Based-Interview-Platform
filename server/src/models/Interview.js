@@ -19,7 +19,7 @@ recruiterId: {
 },
   status: {
     type: String,
-    enum: ['pending', 'in_progress', 'completed', 'evaluated','processing'],
+    enum: ['pending', 'in_progress','paused', 'completed', 'evaluated','terminated'],
     default: 'pending'
   },
 

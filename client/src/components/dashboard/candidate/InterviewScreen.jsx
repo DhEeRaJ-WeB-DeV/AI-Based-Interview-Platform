@@ -31,17 +31,20 @@ export default function InterviewScreen({ interviewId }) {
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
-  const [showTabSwitchModal, setShowTabSwitchModal] = useState(false);
   const [inputMode, setInputMode] = useState("voice");
   const [typedAnswer, setTypedAnswer] = useState("");
   const [backButton, setBackbutton] = useState(false);
   const [interviewcompleted, setinterviewcompleted] = useState(false);
+  const [isFullscreenLocked, setIsFullscreenLocked] = useState(false);
+  const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
+  const isInterviewLocked = isFullscreenLocked || isTabSwitchLocked;
 
   const videoRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const answerPhaseStartedRef = useRef(false);
   const isFetchingQuestionRef = useRef(false);
-
+  const violationInProgressRef = useRef(false);
+  const terminationStartedRef = useRef(false);
 
   // Always holds the latest transcript synchronously, so handleNext can
   // read it without waiting on a React re-render and without needing
@@ -57,6 +60,8 @@ export default function InterviewScreen({ interviewId }) {
     recording,
     streamRef,
   } = useMediaRecorder();
+
+  const { speak, stopSpeaking } = useSpeechSynthesis();
 
   const {
     startStreaming,
@@ -111,33 +116,174 @@ export default function InterviewScreen({ interviewId }) {
 
   }, [interviewId]);
 
+
+
+  const cleanupSession = useCallback(() => {
+
+    stopSpeaking();
+    stopStreaming();
+
+    setIsRecordingAnswer(false);
+
+    // Stop MediaRecorder if it's still recording
+    stopVideoRecording().catch(() => { });
+
+    // Stop camera + microphone
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+
+      mediaStreamRef.current = null;
+    }
+
+    // Remove video source
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+
+    liveTranscriptRef.current = "";
+    setLiveTranscript("");
+    setTypedAnswer("");
+
+  }, [
+    stopSpeaking,
+    stopStreaming,
+    stopVideoRecording,
+  ]);
+
+
+  const terminateInterview = useCallback(async () => {
+    try {
+      stopSpeaking();
+      await stopStreaming();
+
+      setIsRecordingAnswer(false);
+
+      await stopVideoRecording();
+
+      await api.post(
+        `/interview/${interviewId}/submit`,
+        {
+          terminate: true,
+        }
+      );
+
+      cleanupSession();
+
+      navigate("/dashboard", {
+        replace: true,
+        state: {
+          malpractice: true,
+        },
+      });
+
+    } catch (err) {
+      console.error("Termination failed:", err);
+
+      toast.error(
+        "Failed to submit terminated interview."
+      );
+    }
+  }, [
+    interviewId,
+    stopSpeaking,
+    stopStreaming,
+    stopVideoRecording,
+    cleanupSession,
+    navigate,
+  ]);
+
   // tabswitch
-  // useTabSwitchGuard({
-  //   enabled: true,
-  //   maxViolations: 2,
+  const handleTabSwitchViolation = useCallback(
+    async (reason) => {
 
-  //   onWarning: () => {
-  //     setShowWarningModal(true);
-  //   },
+      // Ignore violations after termination has started
+      if (terminationStartedRef.current) {
+        return;
+      }
 
-  //   onViolation: async () => {
-  //     cleanupSession();
-  //     setShowWarningModal(false);
-  //     setShowTabSwitchModal(true);
+      // Prevent duplicate API calls
+      if (violationInProgressRef.current) {
+        return;
+      }
 
-  //     try {
-  //       await api.post(
-  //         `/interview/interview-violation`,
-  //         {
-  //           isviolated: true,
-  //         }
-  //       );
-  //     } catch (err) {
-  //       console.error(err);
-  //     }
-  //   },
-  // });
+      violationInProgressRef.current = true;
 
+      try {
+
+        // Stop AI audio processing
+        stopSpeaking();
+        await stopStreaming();
+
+        setIsRecordingAnswer(false);
+
+        // Disable interview controls
+        setIsTabSwitchLocked(true);
+
+        console.log("TAB SWITCH VIOLATION:", {
+          interviewId,
+          type: "tabSwitch",
+          reason,
+        });
+
+        const { data } = await api.post(
+          "/interview/interview-violation",
+          {
+            interviewId,
+            type: "tabSwitch",
+          }
+        );
+
+        console.log(
+          "TAB SWITCH RESPONSE:",
+          data
+        );
+
+        // SECOND VIOLATION
+        if (data.terminate) {
+
+          terminationStartedRef.current = true;
+
+          toast.error(
+            "Interview terminated due to multiple tab switches."
+          );
+
+          await terminateInterview();
+
+          return;
+        }
+
+        // FIRST VIOLATION
+        setShowWarningModal(true);
+
+      } catch (err) {
+
+        console.error(
+          "Tab switch violation failed:",
+          err
+        );
+
+      } finally {
+
+        violationInProgressRef.current = false;
+
+      }
+
+    },
+    [
+      interviewId,
+      stopSpeaking,
+      stopStreaming,
+      terminateInterview,
+    ]
+  );
+
+  useTabSwitchGuard({
+    enabled: true,
+    onViolation: handleTabSwitchViolation,
+  });
 
 
 
@@ -163,26 +309,72 @@ export default function InterviewScreen({ interviewId }) {
 
     // 3. Monitor Fullscreen Transitions
     const handleFullscreenChange = async () => {
-      if (document.fullscreenElement) {
-        if (navigator.keyboard?.lock) {
-          try {
-            await navigator.keyboard.lock(["Escape"]);
-          } catch (e) { }
-        }
-        // return;
+
+      if (terminationStartedRef.current) {
+        return;
       }
 
-      // User exited fullscreen
-      toast.error("Fullscreen is required.");
+      if (document.fullscreenElement) {
+        setIsFullscreenLocked(false);
 
-      // Record violation
-      // await handleMalpractice("fullscreen_exit");
+        if (inputMode === "voice") {
+          setIsRecordingAnswer(true);
 
-      // Try to re-enter fullscreen
+          if (mediaStreamRef.current instanceof MediaStream) {
+            await startStreaming(mediaStreamRef.current);
+          }
+        }
+
+        return;
+      }
+
+      // Prevent duplicate violation API calls
+      if (violationInProgressRef.current) {
+        return;
+      }
+
+      violationInProgressRef.current = true;
+
       try {
-        await document.documentElement.requestFullscreen();
-      } catch (e) {
-        console.log("User denied fullscreen");
+        stopSpeaking();
+        await stopStreaming();
+
+        setIsRecordingAnswer(false);
+        setIsFullscreenLocked(true);
+
+
+        const { data } = await api.post(
+          "/interview/interview-violation",
+          {
+            interviewId,
+            type: "fullscreen",
+          }
+        );
+
+
+        if (data.terminate) {
+
+          terminationStartedRef.current = true;
+          toast.error(
+            "Interview terminated due to multiple fullscreen violations."
+          );
+
+          await terminateInterview();
+
+          return;
+        }
+
+        toast.error(
+          "Return to fullscreen to continue."
+        );
+
+      } catch (err) {
+        console.error(
+          "Fullscreen violation request failed:",
+          err
+        );
+      } finally {
+        violationInProgressRef.current = false;
       }
     };
 
@@ -230,63 +422,6 @@ export default function InterviewScreen({ interviewId }) {
   }, [inputMode]);
 
 
-  const { speak, stopSpeaking } = useSpeechSynthesis();
-
-  const cleanupSession = useCallback(() => {
-
-    stopSpeaking();
-    stopStreaming();
-
-    setIsRecordingAnswer(false);
-
-    // Stop MediaRecorder if it's still recording
-    stopVideoRecording().catch(() => { });
-
-    // Stop camera + microphone
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => {
-        track.stop();
-      });
-
-      mediaStreamRef.current = null;
-    }
-
-    // Remove video source
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-
-    liveTranscriptRef.current = "";
-    setLiveTranscript("");
-    setTypedAnswer("");
-
-  }, [
-    stopSpeaking,
-    stopStreaming,
-    stopVideoRecording,
-  ]);
-
-
-  // for tab switch violation
-  const handleMalpractice = useCallback(
-    (reason) => {
-      cleanupSession();
-
-      toast.error(
-        reason === "tab-switch"
-          ? "Tab switch detected. Interview session closed."
-          : "Interview focus lost. Session closed."
-      );
-
-      navigate("/dashboard", {
-        replace: true,
-        state: { malpractice: true },
-      });
-    },
-    [cleanupSession, navigate]
-  );
-
 
   const fetchQuestion = useCallback(async () => {
 
@@ -317,7 +452,7 @@ export default function InterviewScreen({ interviewId }) {
 
       liveTranscriptRef.current = "";
       setLiveTranscript("");
-      setTypedAnswer(""); 
+      setTypedAnswer("");
 
       stopSpeaking();
 
@@ -338,7 +473,7 @@ export default function InterviewScreen({ interviewId }) {
         }
       );
 
-      setQuestionIndex((prev) => prev + 1);
+      setQuestionIndex(res.data.question.orderIndex);
 
 
     } catch (err) {
@@ -380,8 +515,6 @@ export default function InterviewScreen({ interviewId }) {
 
         await startVideoRecording(stream);
 
-
-
         if (videoRef.current) {
 
           videoRef.current.srcObject = stream;
@@ -404,6 +537,8 @@ export default function InterviewScreen({ interviewId }) {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+
 
   const uploadAnswer = useCallback(async (videoBlob, transcriptText) => {
 
@@ -438,6 +573,8 @@ export default function InterviewScreen({ interviewId }) {
 
 
   const handleNext = useCallback(async () => {
+
+
     if (submitting || !question) {
       return;
     }
@@ -465,7 +602,7 @@ export default function InterviewScreen({ interviewId }) {
 
 
       }
-      
+
       if (inputMode === "voice") {
         await stopStreaming();
       }
@@ -508,6 +645,7 @@ export default function InterviewScreen({ interviewId }) {
         "Something went wrong. Please try again."
       );
     }
+
     finally {
       setSubmitting(false);
     }
@@ -525,6 +663,9 @@ export default function InterviewScreen({ interviewId }) {
     inputMode,
     typedAnswer
   ]);
+
+
+
 
 
   const isLastQuestion = questionIndex >= TOTAL_QUESTIONS;
@@ -580,9 +721,10 @@ export default function InterviewScreen({ interviewId }) {
                 </p>
               </div>
 
-             <div className="min-h-[260px] flex-1 text-sm leading-relaxed text-slate-300">
+              <div className="min-h-[260px] flex-1 text-sm leading-relaxed text-slate-300">
                 {inputMode === "text" ? (
                   <textarea
+                    disabled={isInterviewLocked}
                     value={typedAnswer}
                     onChange={(e) => setTypedAnswer(e.target.value)}
                     placeholder="Type your answer here..."
@@ -627,20 +769,22 @@ export default function InterviewScreen({ interviewId }) {
               </div>
 
               <button
+                disabled={isInterviewLocked}
                 onClick={switchToVoice}
                 className={`px-5 py-2 text-sm font-medium transition ${inputMode === "voice"
-                    ? "bg-emerald-600 text-white"
-                    : "text-slate-400 hover:bg-slate-800"
+                  ? "bg-emerald-600 text-white"
+                  : "text-slate-400 hover:bg-slate-800"
                   }`}
               >
                 🎤 Voice
               </button>
 
               <button
+                disabled={isInterviewLocked}
                 onClick={switchToText}
                 className={`px-5 py-2 text-sm font-medium transition ${inputMode === "text"
-                    ? "bg-emerald-600 text-white"
-                    : "text-slate-400 hover:bg-slate-800"
+                  ? "bg-emerald-600 text-white"
+                  : "text-slate-400 hover:bg-slate-800"
                   }`}
               >
                 ⌨️ Type
@@ -648,7 +792,7 @@ export default function InterviewScreen({ interviewId }) {
               <button
                 type="button"
                 onClick={handleNext}
-                disabled={loading || submitting}
+                disabled={loading || submitting || isInterviewLocked}
                 className="h-10 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
                 {submitting
@@ -735,41 +879,75 @@ export default function InterviewScreen({ interviewId }) {
         showWarningModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
             <div className="w-full max-w-md rounded-lg border border-amber-700 bg-slate-900 p-8 text-center">
+
               <h2 className="mb-3 text-2xl font-bold text-amber-400">
-                Tab switch detected
+                Tab Switch Detected
               </h2>
+
               <p className="mb-6 text-slate-300">
-                Switching tabs again will end your interview immediately.
+                You have switched away from the interview tab.
+                This is your first violation.
+                Switching tabs again will terminate the interview.
               </p>
+
               <button
                 type="button"
-                onClick={() => setShowWarningModal(false)}
-                className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500 cursor-pointer"
+                onClick={async () => {
+
+                  setShowWarningModal(false);
+
+                  // Re-enable interview
+                  setIsTabSwitchLocked(false);
+
+                  // Resume voice mode if selected
+                  if (
+                    inputMode === "voice" &&
+                    mediaStreamRef.current instanceof MediaStream
+                  ) {
+                    setIsRecordingAnswer(true);
+
+                    await startStreaming(
+                      mediaStreamRef.current
+                    );
+                  }
+
+                }}
+                className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500"
               >
-                Continue interview
+                Continue Interview
               </button>
+
             </div>
           </div>
         )
       }
 
       {
-        showTabSwitchModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-            <div className="w-full max-w-md rounded-lg border border-red-900 bg-slate-900 p-8 text-center">
-              <h2 className="mb-3 text-2xl font-bold text-red-400">
-                Interview cancelled
+        isFullscreenLocked && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+            <div className="w-full max-w-md rounded-lg bg-slate-900 p-8 text-center">
+
+              <h2 className="text-2xl font-bold text-red-400">
+                Fullscreen Required
               </h2>
-              <p className="mb-6 text-slate-300">
-                You switched away from this tab. For fairness to all candidates,
-                the interview session ends immediately when that happens.
+
+              <p className="mt-3 text-slate-300">
+                warning : You exited fullscreen.
+                Return to fullscreen to continue your interview.
+                next time interview will be auto submitted
               </p>
+
               <button
-                type="button"
-                onClick={() => navigate("/dashboard", { replace: true, state: { malpractice: true } })}
-                className="rounded-md bg-red-600 px-6 py-3 font-semibold text-white hover:bg-red-500 cursor-pointer"
+                onClick={async () => {
+                  try {
+                    await document.documentElement.requestFullscreen();
+                  } catch {
+                    toast.error("Unable to enter fullscreen.");
+                  }
+                }}
+                className="mt-6 rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500"
               >
-                Return to dashboard
+                Return to Fullscreen
               </button>
             </div>
           </div>

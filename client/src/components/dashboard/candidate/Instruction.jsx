@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import api from "../../../api/axiosClient";
 import useDeviceCheck from "./hooks/useDeviceCheck";
 import SpeedGauge from "./SpeedGauge";
-import useNetworkCheck,{
+import useNetworkCheck, {
   NETWORK_GAUGE_MAX_MBPS,
   NETWORK_POOR_MAX_MBPS,
   NETWORK_FAIR_MAX_MBPS,
@@ -49,7 +49,7 @@ export default function InstructionPage({ post, onBack, onStart }) {
 
   const { internetStatus, downloadMBps, pingMs, jitterMs, checkInternet } = useNetworkCheck();
 
-  const allChecksPassed = deviceStatus === "success" && internetStatus === "success" && termsAccepted ;
+  const allChecksPassed = deviceStatus === "success" && internetStatus === "success" && termsAccepted;
 
   const handleStart = async () => {
     if (!allChecksPassed) {
@@ -58,28 +58,39 @@ export default function InstructionPage({ post, onBack, onStart }) {
     }
 
 
-  try {
-    const response = await api.post(
-      "/interview/start-interview",
-      {
-        postId: post._id,
-        postedBy : post.postedBy,
-        candidateId: post.candidateId,
-        jobRole: post.role,
-        jobDescription: post.jobDescription,
-        skills: post.skills,
-        difficulty: post.difficulty,
-        numberOfQuestions: post.numberOfQuestions,
-      }
-    );
-    if (response.status === 201) {
-      toast.success("Interview started.");
-      onStart(response.data.interviewId);
-    }
-  } catch (err) {
-    toast.error(err.response?.data?.message || "Something went wrong");
+    try {
+      const response = await api.post(
+        "/interview/start-interview",
+        {
+          postId: post._id,
+          postedBy: post.postedBy,
+          candidateId: post.candidateId,
+          jobRole: post.role,
+          jobDescription: post.jobDescription,
+          skills: post.skills,
+          difficulty: post.difficulty,
+          numberOfQuestions: post.numberOfQuestions,
+        }
+      );
 
-  }
+      const { interviewId, resumed } = response.data;
+
+      if (resumed) {
+        toast.success("Resuming your interview...");
+      } else {
+        toast.success("Interview started.");
+      }
+
+      onStart(interviewId);
+
+      if (response.status === 201) {
+        toast.success("Interview started.");
+        onStart(response.data.interviewId);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Something went wrong");
+
+    }
   }
 
   return (
@@ -110,9 +121,9 @@ export default function InstructionPage({ post, onBack, onStart }) {
         </div>
 
         <p className="mt-4 text-sm text-slate-40">
-           Before starting, please review the Terms & Conditions, complete the
-            camera & microphone check, and verify your internet connection. Once all
-            checks are complete, you can begin your interview.
+          Before starting, please review the Terms & Conditions, complete the
+          camera & microphone check, and verify your internet connection. Once all
+          checks are complete, you can begin your interview.
         </p>
 
         <div className="my-6 grid gap-3 sm:grid-cols-2">
@@ -250,10 +261,10 @@ export default function InstructionPage({ post, onBack, onStart }) {
                 {internetStatus === "success"
                   ? "Good enough for the interview."
                   : internetStatus === "error" && downloadMBps !== null
-                  ? `Below the ${NETWORK_POOR_MAX_MBPS} MB/s minimum.`
-                  : internetStatus === "error"
-                  ? "Couldn't verify your connection."
-                  : "Run a quick check before starting."}
+                    ? `Below the ${NETWORK_POOR_MAX_MBPS} MB/s minimum.`
+                    : internetStatus === "error"
+                      ? "Couldn't verify your connection."
+                      : "Run a quick check before starting."}
               </p>
             </div>
 
@@ -297,10 +308,9 @@ export default function InstructionPage({ post, onBack, onStart }) {
               onClick={checkInternet}
               disabled={internetStatus === "checking"}
               className={`mt-4 flex h-9 w-full max-w-[260px] items-center justify-center gap-2 rounded-md border text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed
-                ${
-                  internetStatus === "success"
-                    ? "border-emerald-800 bg-emerald-950/50 text-emerald-300"
-                    : internetStatus === "error"
+                ${internetStatus === "success"
+                  ? "border-emerald-800 bg-emerald-950/50 text-emerald-300"
+                  : internetStatus === "error"
                     ? "border-red-900 bg-red-950/40 text-red-300"
                     : "border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-600"
                 }`}
@@ -313,35 +323,34 @@ export default function InstructionPage({ post, onBack, onStart }) {
             </button>
           </div>
         </div>
-          
-          {/* terms and condition  */}
-          <div className="mt-4 flex justify-center">
-            <a
-              className={`inline-block rounded-md px-3 py-2 text-sm transition-colors ${
-                termsAccepted
-                  ? "cursor-not-allowed pointer-events-none text-green-400"
-                  : "cursor-pointer text-blue-500 hover:underline hover:text-blue-600"
+
+        {/* terms and condition  */}
+        <div className="mt-4 flex justify-center">
+          <a
+            className={`inline-block rounded-md px-3 py-2 text-sm transition-colors ${termsAccepted
+                ? "cursor-not-allowed pointer-events-none text-green-400"
+                : "cursor-pointer text-blue-500 hover:underline hover:text-blue-600"
               }`}
-              onClick={() => {
-                if (!termsAccepted) {
-                  setShowTerms(true);
-                }
-              }}
-            >
-              {termsAccepted
-                ? "✓ Terms & Conditions Accepted"
-                : "View Terms & Conditions"}
-            </a>
-          </div>
-             <TermsAndConditionsModal
-              isOpen={showTerms}
-              onClose={() => setShowTerms(false)}
-              onAccept={() => {
-                setTermsAccepted(true);
-                setShowTerms(false);
-                console.log('User accepted terms');
-              }}
-            />
+            onClick={() => {
+              if (!termsAccepted) {
+                setShowTerms(true);
+              }
+            }}
+          >
+            {termsAccepted
+              ? "✓ Terms & Conditions Accepted"
+              : "View Terms & Conditions"}
+          </a>
+        </div>
+        <TermsAndConditionsModal
+          isOpen={showTerms}
+          onClose={() => setShowTerms(false)}
+          onAccept={() => {
+            setTermsAccepted(true);
+            setShowTerms(false);
+            console.log('User accepted terms');
+          }}
+        />
 
         <button
           type="button"

@@ -19,100 +19,101 @@ const finalizeInterview = async (interviewId) => {
       interviewId,
     });
 
-  if (existing)
-    return;
+  if (!existing){
 
-//   interview.status = "evaluating";
-
-//   await interview.save();
-
-  let totalScore = 0;
-
-  let answeredCount = 0;
-
+    
+    //   interview.status = "evaluating";
+    
+    //   await interview.save();
+    
+    let totalScore = 0;
+    
+    let answeredCount = 0;
+    
   for (const question of interview.questions) {
 
     if (!question.answerText)
       continue;
-
+    
     const evaluation = {
       score: 80,
       relevance: 82,
       clarity: 78,
       feedback:
-        "Good answer with room for more technical depth.",
+      "Good answer with room for more technical depth.",
     };
-
+    
     question.aiEvaluation = evaluation;
-
+    
     totalScore += evaluation.score;
-
+    
     answeredCount++;
-
+    
   }
-
+  
   const overallScore =
-    answeredCount
-      ? Math.round(totalScore / answeredCount)
-      : 0;
-
+  answeredCount
+  ? Math.round(totalScore / answeredCount)
+  : 0;
+  
   await interview.save();
-
+  
   const summary = {
     strengths: [
       "Good communication skills",
       "Demonstrates basic technical knowledge",
     ],
-
+    
     weaknesses: [
       "Needs deeper understanding of advanced concepts",
       "Could provide more structured answers",
     ],
-
+    
     recommendation: "hire",
   };
-
+  
   const recruiter =
-    await Admin.findById(
-      interview.recruiterId
-    ).select("name");
-
+  await Admin.findById(
+    interview.recruiterId
+  ).select("name");
+  
   await Result.create({
-
+    
     interviewId: interview._id,
-
+    
     recruiter: recruiter.name,
-
+    
     recruiterId: interview.recruiterId,
-
+    
     candidateId: interview.candidateId,
-
+    
     overallScore,
-
+    
     summary: {
-
+      
       totalQuestions:
-        interview.questions.length,
-
+      interview.questions.length,
+      
       averageScore:
-        overallScore,
-
+      overallScore,
+      
       ...summary,
-
+      
     },
-
+    
     questions:
-      interview.questions,
-
+    interview.questions,
+    
     evaluatedAt:
-      new Date(),
-
+    new Date(),
+    
   });
-
+}
+  
   await InterviewPost.findByIdAndDelete(
     interview.postId
   );
-
+  
   interview.status = "completed";
 
   await interview.save();

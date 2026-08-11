@@ -222,7 +222,7 @@ const CandidateDashboard = ({ onAttend }) => {
                         return;
                       }
                       if (!hasStarted) {
-                        toast("Your interview hasn't started yet.", {
+                        toast.error("Your interview hasn't started yet.", {
                           icon: "⏰",
                         });
                         return;

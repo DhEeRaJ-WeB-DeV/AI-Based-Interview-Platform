@@ -12,6 +12,7 @@ const summarySchema = new mongoose.Schema({
 const resultSchema = new mongoose.Schema({
   interviewId:  { type: mongoose.Schema.Types.ObjectId, ref: 'Interview', required: true, unique: true },
   candidateId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  recruiterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
   recruiter : {type:String},
   overallScore: { type: Number, default: null },   // 0–100
   summary:      { type: summarySchema, default: null },
