@@ -67,7 +67,7 @@ const allFinished = latestInterview.questions.every(
 
     if (
       allFinished &&
-      interview.status === "processing"
+      interview.status === "in_progress"
     ) {
 
       await finalizeQueue.add(

@@ -52,6 +52,9 @@ export default function InstructionPage({ post, onBack, onStart }) {
   const allChecksPassed = deviceStatus === "success" && internetStatus === "success" && termsAccepted;
 
   const handleStart = async () => {
+    // enter into fullscreen mode
+    await document.documentElement.requestFullscreen()
+
     if (!allChecksPassed) {
       toast.error("Please complete all checks before starting.");
       return;

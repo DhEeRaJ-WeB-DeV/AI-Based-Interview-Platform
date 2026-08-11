@@ -31,12 +31,22 @@ export default function InterviewScreen({ interviewId }) {
   const [liveTranscript, setLiveTranscript] = useState("");
   const [isRecordingAnswer, setIsRecordingAnswer] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
+  // Tracks which channel triggered the shared warning modal ("tabSwitch" |
+  // "fullscreen") purely so we can word the message correctly. The
+  // underlying violation COUNT is shared across both channels on the
+  // backend, so this is display-only.
+  const [warningType, setWarningType] = useState(null);
   const [inputMode, setInputMode] = useState("voice");
   const [typedAnswer, setTypedAnswer] = useState("");
   const [backButton, setBackbutton] = useState(false);
   const [interviewcompleted, setinterviewcompleted] = useState(false);
   const [isFullscreenLocked, setIsFullscreenLocked] = useState(false);
   const [isTabSwitchLocked, setIsTabSwitchLocked] = useState(false);
+  // True only once a SECOND violation (of either type) has been confirmed
+  // and terminateInterview() is actively running. Kept separate from
+  // isFullscreenLocked/isTabSwitchLocked because those also flip true
+  // briefly on a FIRST violation, before we know whether it'll terminate.
+  const [isTerminating, setIsTerminating] = useState(false);
   const isInterviewLocked = isFullscreenLocked || isTabSwitchLocked;
 
   const videoRef = useRef(null);
@@ -45,6 +55,24 @@ export default function InterviewScreen({ interviewId }) {
   const isFetchingQuestionRef = useRef(false);
   const violationInProgressRef = useRef(false);
   const terminationStartedRef = useRef(false);
+
+  // Debounces tab-switch and fullscreen-exit events that fire for the same
+  // physical action (e.g. alt-tab can trigger both `visibilitychange` and
+  // `fullscreenchange` within milliseconds of each other). Without this,
+  // both channels would report a violation independently and could both
+  // reach `terminate: true` and both call terminateInterview().
+  const lastViolationAtRef = useRef(0);
+
+  // Guards every async callback below from running (or updating state)
+  // after the component has unmounted — e.g. because a *different*
+  // violation channel already navigated away via terminateInterview().
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Always holds the latest transcript synchronously, so handleNext can
   // read it without waiting on a React re-render and without needing
@@ -159,7 +187,9 @@ export default function InterviewScreen({ interviewId }) {
       stopSpeaking();
       await stopStreaming();
 
-      setIsRecordingAnswer(false);
+      if (isMountedRef.current) {
+        setIsRecordingAnswer(false);
+      }
 
       await stopVideoRecording();
 
@@ -195,59 +225,84 @@ export default function InterviewScreen({ interviewId }) {
     navigate,
   ]);
 
-  // tabswitch
-  const handleTabSwitchViolation = useCallback(
-    async (reason) => {
+  // Single entry point for BOTH tab-switch and fullscreen-exit violations.
+  // Consolidating them here is what fixes:
+  //   1. Two separate "first violation" warning modals for what the user
+  //      experiences as one action (alt-tab dropping fullscreen).
+  //   2. Two concurrent /submit calls (and the stray "Interview not found"
+  //      response) when both channels independently reach terminate=true.
+  const reportViolation = useCallback(
+    async (type) => {
 
-      // Ignore violations after termination has started
-      if (terminationStartedRef.current) {
+      // Ignore violations after termination has already started, or after
+      // the component has unmounted (e.g. a sibling violation call already
+      // navigated us away).
+      if (terminationStartedRef.current || !isMountedRef.current) {
         return;
       }
 
-      // Prevent duplicate API calls
+      // Prevent duplicate/concurrent API calls
       if (violationInProgressRef.current) {
         return;
       }
+
+      // Collapse events that fire within ~800ms of each other into a
+      // single violation — this is the actual fix for one alt-tab firing
+      // both `visibilitychange`/`blur` AND `fullscreenchange`.
+      const now = Date.now();
+      if (now - lastViolationAtRef.current < 800) {
+        return;
+      }
+      lastViolationAtRef.current = now;
 
       violationInProgressRef.current = true;
 
       try {
 
-        // Stop AI audio processing
         stopSpeaking();
         await stopStreaming();
 
+        if (!isMountedRef.current) {
+          return;
+        }
+
         setIsRecordingAnswer(false);
 
-        // Disable interview controls
-        setIsTabSwitchLocked(true);
-
-        console.log("TAB SWITCH VIOLATION:", {
-          interviewId,
-          type: "tabSwitch",
-          reason,
-        });
+        if (type === "fullscreen") {
+          setIsFullscreenLocked(true);
+        } else {
+          setIsTabSwitchLocked(true);
+        }
 
         const { data } = await api.post(
           "/interview/interview-violation",
           {
             interviewId,
-            type: "tabSwitch",
+            type,
           }
         );
 
-        console.log(
-          "TAB SWITCH RESPONSE:",
-          data
-        );
+        console.log("VIOLATION RESPONSE:", data);
 
-        // SECOND VIOLATION
+        // Re-check AFTER the await: another violation channel (or an
+        // unmount) may have already started termination while this
+        // request was in flight. Without this check, two racing channels
+        // could both see terminate:true and both call
+        // terminateInterview(), which is what produced the duplicate
+        // /submit calls and the trailing "Interview not found" response.
+        if (!isMountedRef.current || terminationStartedRef.current) {
+          return;
+        }
+
         if (data.terminate) {
 
           terminationStartedRef.current = true;
+          setIsTerminating(true);
 
           toast.error(
-            "Interview terminated due to multiple tab switches."
+            data.alreadyEnded
+              ? "This interview has already ended."
+              : "Interview terminated due to repeated violations."
           );
 
           await terminateInterview();
@@ -255,15 +310,13 @@ export default function InterviewScreen({ interviewId }) {
           return;
         }
 
-        // FIRST VIOLATION
+        // FIRST violation on either channel — show one shared warning.
+        setWarningType(type);
         setShowWarningModal(true);
 
       } catch (err) {
 
-        console.error(
-          "Tab switch violation failed:",
-          err
-        );
+        console.error("Violation report failed:", err);
 
       } finally {
 
@@ -282,7 +335,7 @@ export default function InterviewScreen({ interviewId }) {
 
   useTabSwitchGuard({
     enabled: true,
-    onViolation: handleTabSwitchViolation,
+    onViolation: () => reportViolation("tabSwitch"),
   });
 
 
@@ -295,8 +348,6 @@ export default function InterviewScreen({ interviewId }) {
       event.preventDefault();
     };
 
-    // enters into full screen mode
-    document.documentElement.requestFullscreen()
 
     // 2. Keyboard shortcuts block (Copy, Paste)
     const handleKeyDown = (event) => {
@@ -310,7 +361,7 @@ export default function InterviewScreen({ interviewId }) {
     // 3. Monitor Fullscreen Transitions
     const handleFullscreenChange = async () => {
 
-      if (terminationStartedRef.current) {
+      if (terminationStartedRef.current || !isMountedRef.current) {
         return;
       }
 
@@ -328,54 +379,7 @@ export default function InterviewScreen({ interviewId }) {
         return;
       }
 
-      // Prevent duplicate violation API calls
-      if (violationInProgressRef.current) {
-        return;
-      }
-
-      violationInProgressRef.current = true;
-
-      try {
-        stopSpeaking();
-        await stopStreaming();
-
-        setIsRecordingAnswer(false);
-        setIsFullscreenLocked(true);
-
-
-        const { data } = await api.post(
-          "/interview/interview-violation",
-          {
-            interviewId,
-            type: "fullscreen",
-          }
-        );
-
-
-        if (data.terminate) {
-
-          terminationStartedRef.current = true;
-          toast.error(
-            "Interview terminated due to multiple fullscreen violations."
-          );
-
-          await terminateInterview();
-
-          return;
-        }
-
-        toast.error(
-          "Return to fullscreen to continue."
-        );
-
-      } catch (err) {
-        console.error(
-          "Fullscreen violation request failed:",
-          err
-        );
-      } finally {
-        violationInProgressRef.current = false;
-      }
+      await reportViolation("fullscreen");
     };
 
     // 4. Attach all listeners
@@ -385,16 +389,26 @@ export default function InterviewScreen({ interviewId }) {
 
     // 5. Cleanup function
     return () => {
-      if (interviewcompleted === true) {
-        // document.removeEventListener('contextmenu', handleContextMenu);
-        window.removeEventListener("keydown", handleKeyDown, true);
-        document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        if ('keyboard' in navigator && 'unlock' in navigator.keyboard) {
-          navigator.keyboard.unlock();
-        }
+      window.removeEventListener(
+        "keydown",
+        handleKeyDown,
+        true
+      );
+
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreenChange
+      );
+
+      if (
+        "keyboard" in navigator &&
+        "unlock" in navigator.keyboard
+      ) {
+        navigator.keyboard.unlock();
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputMode, reportViolation, startStreaming]);
 
 
 
@@ -881,13 +895,17 @@ export default function InterviewScreen({ interviewId }) {
             <div className="w-full max-w-md rounded-lg border border-amber-700 bg-slate-900 p-8 text-center">
 
               <h2 className="mb-3 text-2xl font-bold text-amber-400">
-                Tab Switch Detected
+                {warningType === "fullscreen"
+                  ? "Fullscreen Exit Detected"
+                  : "Tab Switch Detected"}
               </h2>
 
               <p className="mb-6 text-slate-300">
-                You have switched away from the interview tab.
-                This is your first violation.
-                Switching tabs again will terminate the interview.
+                {warningType === "fullscreen"
+                  ? "You exited fullscreen. "
+                  : "You have switched away from the interview tab. "}
+                This is your first {warningType === "fullscreen" ? "fullscreen" : "tab switch"} violation.
+                Doing this again will terminate the interview.
               </p>
 
               <button
@@ -895,26 +913,50 @@ export default function InterviewScreen({ interviewId }) {
                 onClick={async () => {
 
                   setShowWarningModal(false);
-
-                  // Re-enable interview
+                  setWarningType(null);
                   setIsTabSwitchLocked(false);
 
-                  // Resume voice mode if selected
-                  if (
-                    inputMode === "voice" &&
-                    mediaStreamRef.current instanceof MediaStream
-                  ) {
-                    setIsRecordingAnswer(true);
+                  if (document.fullscreenElement) {
+                    // Browser is already in fullscreen (this was a plain
+                    // tab-switch violation, or fullscreen was somehow
+                    // never actually lost) — resume directly, since
+                    // `fullscreenchange` won't fire again to do it for us.
+                    setIsFullscreenLocked(false);
 
-                    await startStreaming(
-                      mediaStreamRef.current
+                    if (
+                      inputMode === "voice" &&
+                      mediaStreamRef.current instanceof MediaStream
+                    ) {
+                      setIsRecordingAnswer(true);
+                      await startStreaming(mediaStreamRef.current);
+                    }
+
+                    return;
+                  }
+
+                  // Not in fullscreen (this was a fullscreen-exit
+                  // violation) — request it here, inside the click
+                  // handler, since requestFullscreen() only works from a
+                  // direct user gesture. If it succeeds, the
+                  // `fullscreenchange` handler's "entered fullscreen"
+                  // branch takes over: it clears isFullscreenLocked and
+                  // resumes voice streaming on its own, so we don't
+                  // duplicate that here.
+                  try {
+                    await document.documentElement.requestFullscreen();
+                  } catch {
+                    toast.error(
+                      "Please allow fullscreen to continue the interview."
                     );
+                    setIsFullscreenLocked(true);
                   }
 
                 }}
                 className="rounded-md bg-amber-600 px-6 py-3 font-semibold text-white hover:bg-amber-500"
               >
-                Continue Interview
+                {warningType === "fullscreen" && !document.fullscreenElement
+                  ? "Return to Fullscreen & Continue"
+                  : "Continue Interview"}
               </button>
 
             </div>
@@ -923,32 +965,19 @@ export default function InterviewScreen({ interviewId }) {
       }
 
       {
-        isFullscreenLocked && (
+        isTerminating && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
             <div className="w-full max-w-md rounded-lg bg-slate-900 p-8 text-center">
 
               <h2 className="text-2xl font-bold text-red-400">
-                Fullscreen Required
+                Interview Terminated
               </h2>
 
               <p className="mt-3 text-slate-300">
-                warning : You exited fullscreen.
-                Return to fullscreen to continue your interview.
-                next time interview will be auto submitted
+                This interview has been terminated due to reaching the
+                maximum number of fullscreen exits or tab switches allowed.
               </p>
 
-              <button
-                onClick={async () => {
-                  try {
-                    await document.documentElement.requestFullscreen();
-                  } catch {
-                    toast.error("Unable to enter fullscreen.");
-                  }
-                }}
-                className="mt-6 rounded-md bg-emerald-600 px-6 py-3 font-semibold text-white hover:bg-emerald-500"
-              >
-                Return to Fullscreen
-              </button>
             </div>
           </div>
         )

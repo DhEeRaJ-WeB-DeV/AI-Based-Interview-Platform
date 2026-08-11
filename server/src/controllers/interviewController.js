@@ -13,14 +13,19 @@ const OpenAI = require('openai');
 const InterviewViolation = require("../models/interviewViolation");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-let postidforviolation = ""
+// NOTE: the old `let postidforviolation = ""` module-level variable was
+// removed. Module-level variables are shared across every request the
+// Node process handles (not per-request), so under concurrent traffic one
+// candidate's postId could silently overwrite another candidate's. It
+// wasn't read anywhere in this file, so it's safe to drop; if something
+// downstream needs the postId, pass it explicitly via req.body/req.params
+// instead of module state.
 
 const startInterview = async (req, res) => {
   try {
 
     const { jobRole, jobDescription, skills, difficulty, numberOfQuestions, postId } = req.body;
     const candidateId = req.user.id;
-    postidforviolation = postId
 
     // for candidate to return from where he left in case od violation
     const existingInterview = await Interview.findOne({
@@ -60,179 +65,8 @@ const startInterview = async (req, res) => {
         message: "Please upload your resume before attending the interview"
       });
     }
-    //created this helper functions to format education for the prompt
-    //     function formatEducation(education = []) {
-    //       if (!education.length) return "Not provided";
 
-    //       return education
-    //         .map(
-    //           (edu) => `
-    //     - ${edu.degree}
-    //       Institution: ${edu.institution}
-    //       Duration: ${edu.years}
-    //       GPA: ${edu.gpa}
-    //       Location: ${edu.location}`
-    //         )
-    //         .join("\n");
-    //     }
-    // //created this helper functions to format experience for the prompt
-    //     function formatExperience(experience = []) {
-    //       if (!experience.length) return "Fresher";
-
-    //       return experience
-    //         .map(
-    //           (exp) => `
-    //     - ${exp.designation} at ${exp.company}
-    //       Duration: ${exp.dates}
-    //       Responsibilities:
-    //       ${exp.description?.map((d) => `• ${d}`).join("\n  ") || "Not provided"}`
-    //         )
-    //         .join("\n");
-    //     }
-    // //created this helper functions to format projects for the prompt 
-    //     function formatProjects(projects = []) {
-    //       if (!projects.length) return "No projects provided";
-
-    //       return projects
-    //         .map(
-    //           (project) => `
-    //     - ${project.title}
-    //       Technologies: ${project.technologies?.join(", ") || "Not specified"}
-    //       Description: ${project.description}`
-    //         )
-    //         .join("\n");
-    //     }
-
-    //     // generate all questions at once based on the job requirements and candidate profile
-    //     const prompt = `
-    //   You are an experienced technical interviewer conducting a ${difficulty} level interview for the role of ${jobRole}.
-
-    //   ========================
-    //   JOB REQUIREMENTS
-    //   ========================
-
-    //   Role:
-    //   ${jobRole}
-
-    //   Job Description:
-    //   ${jobDescription}
-
-    //   Required Skills:
-    //   ${skills.join(", ")}
-
-    //   ========================
-    //   CANDIDATE PROFILE
-    //   ========================
-
-    //   Name:
-    //   ${user.name}
-
-    //   Current Role:
-    //   ${user.role || "Not provided"}
-
-    //   Skills:
-    //   ${user.skills?.length ? user.skills.join(", ") : "Not provided"}
-
-    //   Education:
-    //   ${formatEducation(user.education)}
-
-    //   Experience:
-    //   ${formatExperience(user.experience)}
-
-    //   Projects:
-    //   ${formatProjects(user.projects)}
-
-    //   ========================
-    //   YOUR TASK
-    //   ========================
-
-    //   Generate exactly ${numberOfQuestions} interview questions that evaluate how well the candidate fits this role by considering BOTH:
-
-    //   1. The job requirements.
-    //   2. The candidate's profile.
-
-    //   Interview Rules:
-
-    //   1. Question 1 MUST always be:
-    //     "Tell me about yourself."
-
-    //   2. Questions 2-4 MUST be technical.
-    //     - Base them on BOTH the job requirements and the candidate's profile.
-    //     - Prioritize skills that appear in both the required skills and the candidate's skills.
-    //     - If the candidate has relevant projects, ask project-specific technical questions about:
-    //       • architecture
-    //       • implementation
-    //       • design decisions
-    //       • debugging
-    //       • optimization
-    //       • scalability
-    //       • security
-    //       • testing
-    //       • deployment
-    //       • trade-offs
-    //     - If the candidate has relevant work experience, ask questions related to technologies, responsibilities, and challenges from that experience.
-    //     - If an important required skill is NOT present in the candidate's profile, ask a conceptual question to evaluate their understanding.
-    //     - Match the complexity of the questions to the selected difficulty level (${difficulty}).
-
-    //   3. Question 5 MUST be behavioral or situational.
-    //     - If the candidate has work experience, base the question on realistic workplace situations.
-    //     - If the candidate is a fresher, ask a project-based or hypothetical scenario relevant to the role.
-
-    //   4. Question 6 MUST always be:
-    //     "Do you have any questions for us?"
-
-    //   Additional Rules:
-
-    //   - Personalize questions whenever possible.
-    //   - Do NOT ask the candidate to simply list their skills, explain their resume, or repeat information already available in the candidate profile.
-    //   - Avoid generic questions when the candidate's projects or experience provide enough context for deeper technical questions.
-    //   - Do NOT repeat any question.
-    //   - Keep questions clear, concise, and interview-appropriate.
-    //   - Ensure every question is unique.
-    //   - Return EXACTLY ${numberOfQuestions} questions.
-
-    //     // Return ONLY a valid JSON array of 6 objects, nothing else. No markdown, no explanation.
-    //     // Format:
-    //     // [
-    //     //   { "questionText": "...", "category": "introduction", "difficulty": "easy" },
-    //     //   { "questionText": "...", "category": "technical", "difficulty": "medium" },
-    //     //   { "questionText": "...", "category": "technical", "difficulty": "medium" },
-    //     //   { "questionText": "...", "category": "technical", "difficulty": "hard" },
-    //     //   { "questionText": "...", "category": "behavioral", "difficulty": "medium" },
-    //     //   { "questionText": "...", "category": "wrap-up", "difficulty": "easy" }
-    //     //   ]`;
-
-    // const response = await openai.chat.completions.create({
-    //   model: 'gpt-4o',
-    //   messages: [{ role: 'user', content: prompt }],
-    // });
-
-    // await AIUsage.findOneAndUpdate({},
-    //   {
-    //     $inc: {
-    //       totalRequests: 1,
-    //       questionTokens: response.usage.total_tokens,
-    //       totalTokens: response.usage.total_tokens,
-    //     },
-    //   }
-    // );
-
-    // let raw = response.choices[0].message.content.trim();
-    // raw = raw
-    //   .replace(/```json\s*/gi, "")
-    //   .replace(/```\s*/g, "")
-    //   .trim();
-    // const parsed = JSON.parse(raw);
-
-    // // build questions array with orderIndex
-    // const questions = parsed.map((q, i) => ({
-    //   questionText: q.questionText,
-    //   category: q.category,
-    //   difficulty: q.difficulty,
-    //   orderIndex: i + 1,
-    // }));
-
-    const questions = [
+  const questions = [
       {
         questionText: "Tell me about yourself.",
         category: "introduction",
@@ -332,10 +166,6 @@ const getNextQuestion = async (req, res) => {
   }
 };
 
-
-
-
-
 const saveAnswer = async (req, res) => {
   try {
     const { questionId, transcript } = req.body;
@@ -406,16 +236,27 @@ const saveAnswer = async (req, res) => {
 };
 
 
-
-
+// "tabSwitch" and "fullscreen" are tracked as SEPARATE counters —
+// termination fires when EITHER type individually reaches 2, not when the
+// two types sum to 2 (one tab switch + one fullscreen exit should NOT be
+// treated as two strikes of the same offense). The frontend still
+// debounces simultaneous events from a single physical action (e.g. one
+// alt-tab firing both a blur and a fullscreenchange) so that doesn't
+// double-increment either counter for what the user experiences as one
+// action — but two genuinely distinct violations of the same type is what
+// should end the interview.
 const interview_violation = async (req, res) => {
   try {
     const { interviewId, type } = req.body;
 
-    console.log("VIOLATION RECEIVED:", {
-      interviewId,
-      type,
-    });
+    console.log("VIOLATION RECEIVED:", { interviewId, type });
+
+    if (!["fullscreen", "tabSwitch"].includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid violation type",
+      });
+    }
 
     const interview = await Interview.findById(interviewId);
 
@@ -426,25 +267,25 @@ const interview_violation = async (req, res) => {
       });
     }
 
-    if (!["fullscreen", "tabSwitch"].includes(type)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid violation type",
+    // The interview was already terminated/submitted by another (possibly
+    // racing) violation request. Tell the client so it can stop cleanly
+    // instead of surfacing this as a 404/error — this is what was showing
+    // up as the stray "Interview not found" response in the network tab.
+    if (interview.status !== "in_progress") {
+      return res.status(200).json({
+        success: true,
+        terminate: true,
+        alreadyEnded: true,
+        type,
+        message: "Interview already ended",
       });
     }
 
-    const field =
-      type === "fullscreen"
-        ? "fullscreen"
-        : "tabSwitch";
+    const field = type; // "fullscreen" or "tabSwitch" — matches schema field names directly
 
     const violation = await InterviewViolation.findOneAndUpdate(
       { interviewId },
-      {
-        $inc: {
-          [field]: 1,
-        },
-      },
+      { $inc: { [field]: 1 } },
       {
         new: true,
         upsert: true,
@@ -454,18 +295,10 @@ const interview_violation = async (req, res) => {
 
     const count = violation[field];
 
-    console.log(
-      `${type} violation count:`,
-      count
-    );
+    console.log(`${type} violation count for ${interviewId}:`, count);
 
-    // SECOND VIOLATION
+    // SECOND violation of THIS SAME type
     if (count >= 2) {
-
-      await InterviewViolation.findOneAndDelete({
-        interviewId,
-      });
-
       return res.status(200).json({
         success: true,
         terminate: true,
@@ -475,7 +308,7 @@ const interview_violation = async (req, res) => {
       });
     }
 
-    // FIRST VIOLATION
+    // FIRST violation of this type
     return res.status(200).json({
       success: true,
       terminate: false,
@@ -486,10 +319,7 @@ const interview_violation = async (req, res) => {
 
   } catch (err) {
 
-    console.error(
-      "Violation error:",
-      err
-    );
+    console.error("Violation error:", err);
 
     return res.status(500).json({
       success: false,
@@ -497,370 +327,6 @@ const interview_violation = async (req, res) => {
     });
   }
 };
-
-
-// const submitInterview = async (req, res) => {
-//   try {
-
-//     const interview = await Interview.findById(req.params.id);
-//     if (!interview) return res.status(404).json({ message: 'Interview not found' });
-
-//     const existingResult = await Result.findOne({
-//       interviewId: interview._id,
-//     });
-
-//     if (existingResult) {
-//       return res.status(200).json({
-//         success: true,
-//         resultId: existingResult._id,
-//         message: "Result already exists",
-//       });
-//     }
-
-//     interview.status = 'completed';
-//     interview.submittedAt = new Date();
-//     await interview.save();
-
-//     // evaluate each answered question
-// //     let totalScore = 0;
-// //     let answeredCount = 0;
-
-// //     for (const question of interview.questions) {
-// //       if (!question.answerText) continue;
-
-// //       const prompt = `You are evaluating a candidate's interview answer.
-// // Job role: ${interview.jobRole}
-// // Question: ${question.questionText}
-// // Candidate's answer: ${question.answerText}
-
-// // Evaluate and return ONLY a valid JSON object, no markdown, no explanation:
-// // {
-// //   "score": <0-100>,
-// //   "relevance": <0-100>,
-// //   "clarity": <0-100>,
-// //   "feedback": "<one sentence>"
-// // }`;
-
-// //       const response = await openai.chat.completions.create({
-// //         model: 'gpt-4o',
-// //         messages: [{ role: 'user', content: prompt }],
-// //       });
-
-
-// //       await AIUsage.updateOne(
-// //         {},
-// //         {
-// //           $inc: {
-// //             totalRequests: 1,
-// //             evaluationTokens: response.usage.total_tokens,
-// //             resumeTokens: response.usage.total_tokens,
-// //             totalTokens: response.usage.total_tokens,
-// //           },
-// //         }
-// //       );
-
-// //       const evaluation = JSON.parse(response.choices[0].message.content.trim());
-// //       question.aiEvaluation = evaluation;
-// //       totalScore += evaluation.score;
-// //       answeredCount++;
-// //     }
-
-// // evaluate each answered question (hardcoded)
-// let totalScore = 0;
-// let answeredCount = 0;
-
-// for (const question of interview.questions) {
-//   if (!question.answerText) continue;
-
-//   const evaluation = {
-//     score: 80,
-//     relevance: 82,
-//     clarity: 78,
-//     feedback: "Good answer with room for more technical depth."
-//   };
-
-//   question.aiEvaluation = evaluation;
-//   totalScore += evaluation.score;
-//   answeredCount++;
-// }
-
-//     interview.status = 'evaluated';
-//     await interview.save();
-//     await InterviewPost.findByIdAndDelete(
-//       interview.postId,
-//     );
-
-
-//     const overallScore = answeredCount > 0
-//       ? Math.round(totalScore / answeredCount)
-//       : 0;
-
-//     // generate summary
-// //     const summaryPrompt = `Based on this interview for ${interview.jobRole}:
-// // ${JSON.stringify(interview.questions.map(q => ({
-// //       question: q.questionText,
-// //       answer: q.answerText,
-// //       evaluation: q.aiEvaluation,
-// //     })))}
-
-// // Return ONLY a valid JSON object, no markdown, no explanation:
-// // {
-// //   "strengths": ["<strength 1>", "<strength 2>"],
-// //   "weaknesses": ["<weakness 1>", "<weakness 2>"],
-// //   "recommendation": "<hire | reject>"
-// // }`;
-
-// //     const summaryResponse = await openai.chat.completions.create({
-// //       model: 'gpt-4o',
-// //       messages: [{ role: 'user', content: summaryPrompt }],
-// //     });
-
-// //     const summary = JSON.parse(summaryResponse.choices[0].message.content.trim());
-
-// //     await AIUsage.updateOne(
-// //       {},
-// //       {
-// //         $inc: {
-// //           totalRequests: 1,
-// //           totalInterviews: 1,
-// //           summaryTokens: summaryResponse.usage.total_tokens,
-// //           totalTokens: summaryResponse.usage.total_tokens,
-// //         },
-// //       }
-// //     );
-
-// const summary = {
-//   strengths: [
-//     "Good communication skills",
-//     "Demonstrates basic technical knowledge"
-//   ],
-//   weaknesses: [
-//     "Needs deeper understanding of advanced concepts",
-//     "Could provide more structured answers"
-//   ],
-//   recommendation: "hire"
-// };
-
-//     const recruiter = await Admin.findById(interview.recruiterId).select("name")
-
-//     const result = await Result.create({
-//       interviewId: interview._id,
-//       recruiter: recruiter.name,
-//       recruiterId: interview.recruiterId,
-//       candidateId: interview.candidateId,
-//       overallScore: overallScore,
-//       summary: {
-//         totalQuestions: interview.questions.length,
-//         averageScore: overallScore,
-//         ...summary,
-//       },
-//       questions: interview.questions,
-//       evaluatedAt: new Date(),
-//     });
-
-//     res.status(200).json({
-//       success: true,
-//       resultId: result._id,
-//       message: 'Interview submitted and evaluated',
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };
-
-
-
-// const submitInterview = async (req, res) => {
-//   try {
-
-//     const interview = await Interview.findById(req.params.id);
-
-//     if (!interview) {
-//       return res.status(404).json({
-//         message: "Interview not found",
-//       });
-//     }
-
-//     const existingResult = await Result.findOne({
-//       interviewId: interview._id,
-//     });
-
-//     if (existingResult) {
-//       return res.status(200).json({
-//         success: true,
-//         resultId: existingResult._id,
-//         message: "Result already exists",
-//       });
-//     }
-
-//     interview.status = "processing";
-//     interview.submittedAt = new Date();
-
-//     await interview.save();
-
-//     // Respond immediately
-//     res.status(200).json({
-//       success: true,
-//       message: "Interview submitted successfully.",
-//     });
-
-//     // ===============================
-//     // Everything below runs in background
-//     // ===============================
-
-//     try {
-
-//       // -------------------------------
-//       // Upload all videos
-//       // -------------------------------
-
-//       // for (const question of interview.questions) {
-
-//       //   if (!question.localRecordingPath) continue;
-
-//       //   const upload = await cloudinary.uploader.upload(
-//       //     question.localRecordingPath,
-//       //     {
-//       //       resource_type: "video",
-//       //       folder: "interview-recordings",
-//       //     }
-//       //   );
-
-//       //   question.recordingUrl = upload.secure_url;
-
-//       //   await fs.unlink(question.localRecordingPath, () => { });
-
-//       //   question.localRecordingPath = null;
-//       // }
-
-//       // await interview.save();
-
-//       // -------------------------------
-//       // Evaluate every answer
-//       // -------------------------------
-
-//       let totalScore = 0;
-//       let answeredCount = 0;
-
-//       for (const question of interview.questions) {
-
-//         if (!question.answerText) continue;
-
-//         // Replace this with OpenAI later
-//         const evaluation = {
-//           score: 80,
-//           relevance: 82,
-//           clarity: 78,
-//           feedback:
-//             "Good answer with room for more technical depth.",
-//         };
-
-//         question.aiEvaluation = evaluation;
-
-//         totalScore += evaluation.score;
-//         answeredCount++;
-
-//       }
-
-//       const overallScore =
-//         answeredCount > 0
-//           ? Math.round(totalScore / answeredCount)
-//           : 0;
-
-//       await interview.save();
-
-//       // -------------------------------
-//       // Generate Summary
-//       // -------------------------------
-
-//       const summary = {
-//         strengths: [
-//           "Good communication skills",
-//           "Demonstrates basic technical knowledge",
-//         ],
-//         weaknesses: [
-//           "Needs deeper understanding of advanced concepts",
-//           "Could provide more structured answers",
-//         ],
-//         recommendation: "hire",
-//       };
-
-//       // -------------------------------
-//       // Recruiter
-//       // -------------------------------
-
-//       const recruiter = await Admin.findById(
-//         interview.recruiterId
-//       ).select("name");
-
-//       // -------------------------------
-//       // Create Result
-//       // -------------------------------
-
-//       await Result.create({
-
-//         interviewId: interview._id,
-
-//         recruiter: recruiter.name,
-
-//         recruiterId: interview.recruiterId,
-
-//         candidateId: interview.candidateId,
-
-//         overallScore,
-
-//         summary: {
-
-//           totalQuestions: interview.questions.length,
-
-//           averageScore: overallScore,
-
-//           ...summary,
-
-//         },
-
-//         questions: interview.questions,
-
-//         evaluatedAt: new Date(),
-
-//       });
-
-//       // -------------------------------
-//       // Cleanup
-//       // -------------------------------
-
-//       await InterviewPost.findByIdAndDelete(
-//         interview.postId
-//       );
-
-//       interview.status = "completed";
-
-//       await interview.save();
-
-//       console.log(
-//         `Interview ${interview._id} processed successfully.`
-//       );
-
-//     } catch (err) {
-
-//       console.error(err);
-
-//       interview.status = "failed";
-
-//       await interview.save();
-
-//     }
-
-//   } catch (err) {
-
-//     return res.status(500).json({
-//       success: false,
-//       message: err.message,
-//     });
-
-//   }
-// };
-
 
 const submitInterview = async (req, res) => {
 
@@ -895,6 +361,26 @@ const submitInterview = async (req, res) => {
     }
 
     if (terminate) {
+
+      // Atomically claim termination. If two violation channels raced
+      // each other to this endpoint, only the first one finds the
+      // document still "in_progress" and flips it — the loser gets
+      // `claimed === null` and returns the already-created result
+      // instead of re-running (and re-emailing, re-deleting-the-post,
+      // etc.) the whole termination flow a second time.
+      const claimed = await Interview.findOneAndUpdate(
+        { _id: interview._id, status: "in_progress" },
+        { $set: { status: "terminated", submittedAt: new Date() } }
+      );
+
+      if (!claimed) {
+        const existingResult = await Result.findOne({ interviewId: interview._id });
+        return res.status(200).json({
+          success: true,
+          result: existingResult || null,
+          message: "Interview already terminated",
+        });
+      }
 
       const recruiter = await Admin.findById(interview.recruiterId).select("name email")
       const candidate = await User.findById(interview.candidateId).select("name email")
@@ -937,13 +423,11 @@ const submitInterview = async (req, res) => {
          has violated the interview rules by exiting full screeen multiple times`
       });
 
-      interview.status = "terminated";
-
-      interview.submittedAt = new Date();
-
-      await interview.save();
-
       await InterviewPost.findByIdAndDelete(interview.postId)
+
+      await InterviewViolation.findOneAndDelete({
+        interviewId: interview._id,
+      });
 
       return res.status(200).json({
         result: result

@@ -2,6 +2,7 @@ const Interview = require("../../src/models/Interview");
 const Result = require("../../src/models/Result");
 const Admin = require("../../src/models/Admin");
 const InterviewPost = require("../../src/models/interviewpost");
+const interviewViolation = require("../../src/models/interviewViolation");
 
 const finalizeInterview = async (interviewId) => {
 
@@ -19,8 +20,9 @@ const finalizeInterview = async (interviewId) => {
       interviewId,
     });
 
-  if (!existing){
-
+  if (existing){
+      return
+    }
     
     //   interview.status = "evaluating";
     
@@ -108,7 +110,6 @@ const finalizeInterview = async (interviewId) => {
     new Date(),
     
   });
-}
   
   await InterviewPost.findByIdAndDelete(
     interview.postId
@@ -117,6 +118,8 @@ const finalizeInterview = async (interviewId) => {
   interview.status = "completed";
 
   await interview.save();
+
+  await interviewViolation.findOneAndDelete({interviewId})
 
   console.log(
     `Interview ${interview._id} finalized successfully`
